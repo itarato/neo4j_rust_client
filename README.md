@@ -37,7 +37,7 @@ fn main() {
     // Create node.
     node.add(&cli);
     assert!(node.id.is_some());
-    assert!(node.properties.name, "John Doe");
+    assert!(node.properties.unwrap().name, "John Doe");
 
     // Add labels.
     node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]);
@@ -45,6 +45,18 @@ fn main() {
     // Delete node.
     node.delete(&cli);
 }
+```
+
+Fetching an existing node:
+
+```rust
+#[derive(RustcEncodable)]
+struct MyNodeType {
+    name: String,
+}
+
+let node: Node<MyNodeType> = node::Node::get(123).unwrap();
+println!("Name of node {} is: {:?}, labels are: {:?}", node.id, node.properties.unwrap().name, node.labels);
 ```
 
 
