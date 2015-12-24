@@ -9,6 +9,8 @@ This is an unofficial (play project) Rust client for Neo4J graph database.
 Usage
 -----
 
+Example scenario for creating connection, adding a node and setting some attributes on it.
+
 ```rust
 extern crate neo4j_client;
 
@@ -36,6 +38,7 @@ fn main() {
     node.add(&cli);
     assert!(node.id.is_some());
 
+    // Add labels.
     node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]);
 
     // Delete node.

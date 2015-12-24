@@ -1,16 +1,33 @@
 use std::io::Read;
-use rustc_serialize::{json, Encodable};
+use rustc_serialize::{json, Encodable, Decodable};
 use hyper;
 
-pub struct Node <T: Encodable> {
+pub struct Node <T: Encodable = NodeUnidentifiedData> {
     id: Option<u64>,
+    labels: Vec<String>,
     properties: Option<T>,
 }
 
-impl<T: Encodable> Node<T> {
+#[derive(RustcDecodable, RustcEncodable)]
+struct NodeMetadataResponse {
+    id: u64,
+    labels: Vec<String>,
+}
+
+#[derive(RustcDecodable, RustcEncodable)]
+struct NodeDataResponse<T: Decodable = NodeUnidentifiedData> {
+    metadata: NodeMetadataResponse,
+    data: T,
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+struct NodeUnidentifiedData;
+
+impl<T: Encodable + Decodable> Node<T> {
     pub fn new() -> Node<T> {
         Node {
             id: None,
+            labels: Vec::new(),
             properties: None,
         }
     }
@@ -18,13 +35,27 @@ impl<T: Encodable> Node<T> {
     pub fn get(client: &::client::Client, id: u64) -> Option<Node<T>> {
         let path: String = format!("/db/data/node/{}", id);
         let mut res_raw = String::new();
-        let _ = client.get(path)
+        let mut res = client.get(path)
             .send()
-            .unwrap()
-            .read_to_string(&mut res_raw);
-        println!("{:?}", res_raw);
+            .unwrap();
 
-        None
+        if hyper::status::StatusCode::Ok != res.status {
+            return None;
+        }
+
+        let mut node = Self::new();
+        let _ = res.read_to_string(&mut res_raw);
+        let node_json: NodeDataResponse<T> = json::decode(&res_raw).unwrap();
+        node.update_from_response_node_json(node_json);
+
+        Some(node)
+    }
+
+    fn update_from_response_node_json(&mut self, node_json: NodeDataResponse<T>) {
+        // TODO check collision if exist and a different would be set
+        self.id = Some(node_json.metadata.id);
+        self.labels = node_json.metadata.labels.clone();
+        self.properties = Some(node_json.data);
     }
 
     pub fn set_properties(&mut self, props: T) {
@@ -44,8 +75,8 @@ impl<T: Encodable> Node<T> {
             .unwrap();
 
         let _ = res.read_to_string(&mut response_raw);
-        let res_body = json::Json::from_str(&response_raw).unwrap();
-        self.id = Some(res_body.as_object().unwrap().get("metadata").unwrap().as_object().unwrap().get("id").unwrap().as_u64().unwrap());
+        let node_json:NodeDataResponse<T> = json::decode(&response_raw).unwrap();
+        self.update_from_response_node_json(node_json);
 
         info!("Node created, id: {}.", self.id.unwrap());
         hyper::status::StatusCode::Created == res.status
@@ -80,7 +111,7 @@ mod tests {
     use node;
     use rustc_serialize::{Encodable};
 
-    #[derive(RustcEncodable)]
+    #[derive(RustcEncodable, RustcDecodable)]
     struct TestNodeData {
         name: String,
         level: i64,
@@ -100,9 +131,13 @@ mod tests {
     #[test]
     pub fn test_node_create_no_type() {
         let cli = get_client();
-        let mut node: node::Node<()> = node::Node::new();
+        let mut node: node::Node = node::Node::new();
         assert!(node.add(&cli));
         assert!(node.id.is_some());
+
+        let node_reload: Option<node::Node> = node::Node::get(&cli, node.id.unwrap());
+        assert_eq!(node.id, node_reload.unwrap().id);
+
         assert!(node.delete(&cli));
     }
 
@@ -117,17 +152,22 @@ mod tests {
         node.set_properties(node_data);
         assert!(node.add(&cli));
         assert!(node.id.is_some());
+
+        let node_reload: Option<node::Node<TestNodeData>> = node::Node::get(&cli, node.id.unwrap());
+        assert_eq!(node.id, node_reload.unwrap().id);
+
         assert!(node.delete(&cli));
     }
 
     #[test]
     pub fn test_node_labels() {
         let cli = get_client();
-        let mut node: node::Node<()> = node::Node::new();
+        let mut node: node::Node = node::Node::new();
         assert!(node.add(&cli));
         assert!(node.id.is_some());
 
         assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]));
         assert!(node.delete(&cli));
     }
+
 }
