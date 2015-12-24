@@ -65,7 +65,7 @@ impl<T: Encodable + Decodable> Node<T> {
     pub fn add(&mut self, client: &::client::Client) -> bool {
         let mut response_raw = String::new();
         let props_string: String = match self.properties {
-            Some(ref props) =>  json::encode(props).unwrap(),
+            Some(ref props) => json::encode(props).unwrap(),
             None => String::new(),
         };
 
