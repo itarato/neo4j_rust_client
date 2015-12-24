@@ -37,6 +37,7 @@ fn main() {
     // Create node.
     node.add(&cli);
     assert!(node.id.is_some());
+    assert!(node.properties.name, "John Doe");
 
     // Add labels.
     node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]);

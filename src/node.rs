@@ -135,8 +135,9 @@ mod tests {
         assert!(node.add(&cli));
         assert!(node.id.is_some());
 
-        let node_reload: Option<node::Node> = node::Node::get(&cli, node.id.unwrap());
-        assert_eq!(node.id, node_reload.unwrap().id);
+        let node_reload: node::Node = node::Node::get(&cli, node.id.unwrap()).unwrap();
+        assert_eq!(node.id, node_reload.id);
+        assert_eq!(node_reload.labels.len(), 0);
 
         assert!(node.delete(&cli));
     }
@@ -144,7 +145,7 @@ mod tests {
     #[test]
     pub fn test_node_create_with_type() {
         let node_data = TestNodeData {
-            name: "foobar".to_string(),
+            name: "John Doe".to_string(),
             level: -42,
         };
         let cli = get_client();
@@ -153,10 +154,14 @@ mod tests {
         assert!(node.add(&cli));
         assert!(node.id.is_some());
 
-        let node_reload: Option<node::Node<TestNodeData>> = node::Node::get(&cli, node.id.unwrap());
-        assert_eq!(node.id, node_reload.unwrap().id);
+        let node_reload: node::Node<TestNodeData> = node::Node::get(&cli, node.id.unwrap()).unwrap();
+        assert_eq!(node.id, node_reload.id);
+        assert_eq!(node_reload.properties.as_ref().unwrap().name, "John Doe");
+        assert_eq!(node_reload.properties.as_ref().unwrap().level, -42);
+        assert_eq!(node_reload.labels.len(), 0);
 
-        assert!(node.delete(&cli));
+        let delete_res = node.delete(&cli);
+        assert!(delete_res);
     }
 
     #[test]
@@ -167,6 +172,12 @@ mod tests {
         assert!(node.id.is_some());
 
         assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]));
+
+        let node_reload: node::Node = node::Node::get(&cli, node.id.unwrap()).unwrap();
+        assert_eq!(node_reload.labels.len(), 2);
+        assert!(node_reload.labels.iter().any(|label| label == "foo"));
+        assert!(node_reload.labels.iter().any(|label| label == "bar"));
+
         assert!(node.delete(&cli));
     }
 
