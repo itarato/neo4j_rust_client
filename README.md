@@ -21,16 +21,25 @@ struct MyNodeType {
 }
 
 fn main() {
+    // Create a client connection.
     let cli = client::ClientBuilder::new()
         .credential("myusername".to_string(), "mypassword".to_string())
         .get();
 
+    // Make up the data for the graph node.
     let mut node: node::Node<MyNodeType> = node::Node::new();
     node.set_properties(MyNodeType {
         name: "John Doe",
     });
-    node::add(&cli);
+
+    // Create node.
+    node.add(&cli);
     assert!(node.id.is_some());
+
+    node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]);
+
+    // Delete node.
+    node.delete(&cli);
 }
 ```
 

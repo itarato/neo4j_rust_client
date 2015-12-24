@@ -75,6 +75,10 @@ impl Client {
     pub fn post(&self, path: String) -> hyper::client::RequestBuilder {
         self.client.post(&self.build_uri(path)).headers(self.headers.clone())
     }
+
+    pub fn delete(&self, path: String) -> hyper::client::RequestBuilder {
+        self.client.delete(&self.build_uri(path)).headers(self.headers.clone())
+    }
 }
 
 #[cfg(test)]

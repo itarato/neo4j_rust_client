@@ -1,5 +1,6 @@
 use std::io::Read;
 use rustc_serialize::{json, Encodable};
+use hyper;
 
 pub struct Node <T: Encodable> {
     id: Option<u64>,
@@ -30,35 +31,45 @@ impl<T: Encodable> Node<T> {
         self.properties = Some(props);
     }
 
-    pub fn add(&mut self, client: &::client::Client) {
+    pub fn add(&mut self, client: &::client::Client) -> bool {
         let mut response_raw = String::new();
         let props_string: String = match self.properties {
             Some(ref props) =>  json::encode(props).unwrap(),
             None => String::new(),
         };
 
-        let _ = client.post("/db/data/node".to_string())
+        let mut res = client.post("/db/data/node".to_string())
             .body(&props_string)
             .send()
-            .unwrap()
-            .read_to_string(&mut response_raw);
+            .unwrap();
 
-        let res = json::Json::from_str(&response_raw).unwrap();
-        self.id = Some(res.as_object().unwrap().get("metadata").unwrap().as_object().unwrap().get("id").unwrap().as_u64().unwrap());
+        let _ = res.read_to_string(&mut response_raw);
+        let res_body = json::Json::from_str(&response_raw).unwrap();
+        self.id = Some(res_body.as_object().unwrap().get("metadata").unwrap().as_object().unwrap().get("id").unwrap().as_u64().unwrap());
 
         info!("Node created, id: {}.", self.id.unwrap());
+        hyper::status::StatusCode::Created == res.status
     }
 
-    pub fn add_labels(&mut self, client: &::client::Client, labels: Vec<String>) {
+    pub fn add_labels(&mut self, client: &::client::Client, labels: Vec<String>) -> bool {
         // TODO error if id does not exist
         let labels_raw:String = ["[\"", &*labels.join("\", \""), "\"]"].concat();
         let path:String = format!("/db/data/node/{}/labels", self.id.unwrap());
-        client.post(path)
+        let res = client.post(path)
             .body(&*labels_raw)
             .send()
             .unwrap();
 
         info!("Labels {:?} added to {}.", labels_raw, self.id.unwrap());
+        hyper::status::StatusCode::NoContent == res.status
+    }
+
+    pub fn delete(self, client: &::client::Client) -> bool {
+        let path:String = format!("/db/data/node/{}", self.id.unwrap());
+        let res = client.delete(path)
+            .send()
+            .unwrap();
+        hyper::status::StatusCode::NoContent == res.status
     }
 }
 
@@ -90,8 +101,9 @@ mod tests {
     pub fn test_node_create_no_type() {
         let cli = get_client();
         let mut node: node::Node<()> = node::Node::new();
-        node.add(&cli);
+        assert!(node.add(&cli));
         assert!(node.id.is_some());
+        assert!(node.delete(&cli));
     }
 
     #[test]
@@ -103,7 +115,19 @@ mod tests {
         let cli = get_client();
         let mut node: node::Node<TestNodeData> = node::Node::new();
         node.set_properties(node_data);
-        node.add(&cli);
+        assert!(node.add(&cli));
         assert!(node.id.is_some());
+        assert!(node.delete(&cli));
+    }
+
+    #[test]
+    pub fn test_node_labels() {
+        let cli = get_client();
+        let mut node: node::Node<()> = node::Node::new();
+        assert!(node.add(&cli));
+        assert!(node.id.is_some());
+
+        assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]));
+        assert!(node.delete(&cli));
     }
 }
