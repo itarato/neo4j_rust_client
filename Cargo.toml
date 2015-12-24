@@ -1,0 +1,9 @@
+[package]
+name = "neo4j_client"
+version = "0.1.0"
+authors = ["Peter Arato <it.arato@gmail.com>"]
+
+[dependencies]
+hyper = "0.6"
+rustc-serialize = "0.3"
+log = "0.3.4"
