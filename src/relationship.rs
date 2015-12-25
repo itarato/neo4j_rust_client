@@ -79,6 +79,16 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
         info!("Relationship has been created");
         Ok(rel)
     }
+
+    pub fn delete(self, cli: &::client::Client) -> bool {
+        let path:String = format!("/db/data/relationship/{}", self.id);
+        let res = cli.delete(path)
+            .send()
+            .unwrap();
+
+        info!("Relationship deleted: {}", self.id);
+        hyper::status::StatusCode::NoContent == res.status
+    }
 }
 
 #[cfg(test)]
@@ -120,6 +130,8 @@ mod tests {
 
         let rel = res.unwrap();
         assert!(rel.id > 0);
+
+        assert!(rel.delete(&cli));
     }
 
     #[test]
@@ -139,5 +151,7 @@ mod tests {
         assert!(rel.id > 0);
         assert_eq!(rel.properties.as_ref().unwrap().name, "Steve");
         assert_eq!(rel.properties.as_ref().unwrap().level, -6);
+
+        assert!(rel.delete(&cli));
     }
 }
