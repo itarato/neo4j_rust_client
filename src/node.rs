@@ -3,7 +3,7 @@ use rustc_serialize::{json, Encodable, Decodable};
 use hyper;
 
 pub struct Node <T: Encodable = NodeUnidentifiedData> {
-    id: Option<u64>,
+    pub id: Option<u64>,
     labels: Vec<String>,
     properties: Option<T>,
 }
@@ -78,7 +78,7 @@ impl<T: Encodable + Decodable> Node<T> {
         let node_json:NodeDataResponse<T> = json::decode(&response_raw).unwrap();
         self.update_from_response_node_json(node_json);
 
-        info!("Node created, id: {}.", self.id.unwrap());
+        info!("Node created, id: {}", self.id.unwrap());
         hyper::status::StatusCode::Created == res.status
     }
 
@@ -91,7 +91,7 @@ impl<T: Encodable + Decodable> Node<T> {
             .send()
             .unwrap();
 
-        info!("Labels {:?} added to {}.", labels_raw, self.id.unwrap());
+        info!("Labels {:?} added to {}", labels_raw, self.id.unwrap());
         hyper::status::StatusCode::NoContent == res.status
     }
 
@@ -104,7 +104,6 @@ impl<T: Encodable + Decodable> Node<T> {
         info!("Node deleted: {}", self.id.unwrap());
         hyper::status::StatusCode::NoContent == res.status
     }
-
 }
 
 #[cfg(test)]

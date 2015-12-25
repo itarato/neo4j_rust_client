@@ -56,7 +56,7 @@ impl ClientBuilder {
 }
 
 impl Client {
-    fn build_uri(&self, path: String) -> String {
+    pub fn build_uri(&self, path: String) -> String {
         format!("{}:{}{}", self.url, self.port, path)
     }
 
