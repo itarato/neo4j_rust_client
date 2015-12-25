@@ -3,14 +3,35 @@ use std::collections::HashMap;
 use hyper;
 use std::io::Read;
 
-#[derive(Debug)]
-pub struct Relationship<T = RelationshipUnidentifiedResult> {
+#[derive(RustcDecodable, Debug)]
+struct RelationshipMetadataResult {
     id: u64,
-    type_name: String,
-    from: u64,
-    to: u64,
-    properties: Option<T>,
 }
+
+#[derive(RustcDecodable, Debug)]
+struct RelationshipResult<T: Decodable> {
+    pub start: String,
+    pub end: String,
+    metadata: RelationshipMetadataResult,
+    data: T,
+}
+
+impl<T: Decodable> RelationshipResult<T> {
+    fn get_start_id(&self) -> u64 {
+        get_node_id_from_url(self.start.clone())
+    }
+
+    fn get_end_id(&self) -> u64 {
+        get_node_id_from_url(self.end.clone())
+    }
+}
+
+fn get_node_id_from_url(url: String) -> u64 {
+    url.split("node/").collect::<Vec<&str>>().last().unwrap().parse::<u64>().unwrap()
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct RelationshipUnidentifiedResult;
 
 enum RelationshipDataField<T: Encodable> {
     Text(String),
@@ -26,21 +47,14 @@ impl<T: Encodable> Encodable for RelationshipDataField<T> {
     }
 }
 
-#[derive(RustcDecodable)]
-struct RelationshipMetadataResult {
+#[derive(Debug)]
+pub struct Relationship<T = RelationshipUnidentifiedResult> {
     id: u64,
+    type_name: String,
+    from: u64,
+    to: u64,
+    properties: Option<T>,
 }
-
-#[derive(RustcDecodable)]
-struct RelationshipResult<T: Decodable> {
-    pub start: String,
-    pub end: String,
-    metadata: RelationshipMetadataResult,
-    data: T,
-}
-
-#[derive(RustcDecodable, RustcEncodable, Debug)]
-pub struct RelationshipUnidentifiedResult;
 
 impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> {
     pub fn connect(cli: &::client::Client, id_from: u64, id_to: u64, type_name: String, properties: Option<T>) -> Result<Relationship<T>, String> {
@@ -88,6 +102,40 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
 
         info!("Relationship deleted: {}", self.id);
         hyper::status::StatusCode::NoContent == res.status
+    }
+}
+
+pub type RelationshipCollectionResult = Vec<RelationshipResult<RelationshipUnidentifiedResult>>;
+
+pub struct RelationshipCollection;
+
+impl RelationshipCollection {
+    pub fn all_for_node(cli: &::client::Client, id: u64) -> Result<Vec<Relationship>, String> {
+        let path = format!("/db/data/node/{}/relationships/all", id);
+        let mut res = cli.get(path)
+            .send()
+            .unwrap();
+
+        if hyper::status::StatusCode::Ok != res.status {
+            return Err("Request error".to_string());
+        }
+
+        let mut res_raw = String::new();
+        let _ = res.read_to_string(&mut res_raw);
+        let rels_result_object = json::Json::from_str(&res_raw).unwrap();
+        let rels_result = rels_result_object.as_array().unwrap();
+
+        let rels: Vec<Relationship> = rels_result.iter().map(|elem| {
+            let obj = elem.as_object().unwrap();
+            Relationship {
+                id: obj.get("metadata").unwrap().as_object().unwrap().get("id").unwrap().as_u64().unwrap(),
+                type_name: obj.get("type").unwrap().as_string().unwrap().to_string(),
+                from: get_node_id_from_url(obj.get("start").unwrap().as_string().unwrap().to_string()),
+                to: get_node_id_from_url(obj.get("end").unwrap().as_string().unwrap().to_string()),
+                properties: None,
+            }
+        }).collect();
+        Ok(rels)
     }
 }
 
