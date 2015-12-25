@@ -9,7 +9,7 @@ pub struct Relationship<T = RelationshipUnidentifiedResult> {
     type_name: String,
     from: u64,
     to: u64,
-    data: Option<T>,
+    properties: Option<T>,
 }
 
 enum RelationshipDataField<T: Encodable> {
@@ -43,12 +43,15 @@ struct RelationshipResult<T: Decodable> {
 pub struct RelationshipUnidentifiedResult;
 
 impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> {
-    pub fn connect(cli: &::client::Client, id_from: u64, id_to: u64, type_name: String, properties: T) -> Result<Relationship<T>, String> {
+    pub fn connect(cli: &::client::Client, id_from: u64, id_to: u64, type_name: String, properties: Option<T>) -> Result<Relationship<T>, String> {
         let mut rel_data:HashMap<String, RelationshipDataField<T>> = HashMap::new();
         let path: String = format!("/db/data/node/{}", id_to);
         rel_data.insert("to".to_string(), RelationshipDataField::Text(cli.build_uri(path)));
         rel_data.insert("type".to_string(), RelationshipDataField::Text(type_name.clone()));
-        rel_data.insert("data".to_string(), RelationshipDataField::Data(properties));
+
+        if properties.is_some() {
+            rel_data.insert("data".to_string(), RelationshipDataField::Data(properties.unwrap()));
+        }
 
         let rel_data_string = json::encode(&rel_data).unwrap();
 
@@ -70,7 +73,7 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
             type_name: type_name.clone(),
             from: id_from,
             to: id_to,
-            data: Some(rel_json.data),
+            properties: Some(rel_json.data),
         };
 
         info!("Relationship has been created");
@@ -85,6 +88,12 @@ mod tests {
     use relationship;
     use node;
 
+    #[derive(RustcEncodable, RustcDecodable)]
+    struct TestRelationshipData {
+        name: String,
+        level: i64,
+    }
+
     fn get_client() -> ::client::Client {
         let password = env::var("RUST_NEO4J_CLIENT_TEST_PASSWORD");
         let username = env::var("RUST_NEO4J_CLIENT_TEST_USERNAME");
@@ -97,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_connect_nodes() {
+    pub fn test_connect_nodes_no_type() {
         let cli = get_client();
 
         let mut node_parent: node::Node = node::Node::new();
@@ -106,10 +115,29 @@ mod tests {
         let mut node_child: node::Node = node::Node::new();
         assert!(node_child.add(&cli));
 
-        let res: Result<relationship::Relationship, String> = relationship::Relationship::connect(&cli, node_parent.id.unwrap(), node_child.id.unwrap(), "Likes".to_string(), relationship::RelationshipUnidentifiedResult);
+        let res: Result<relationship::Relationship, String> = relationship::Relationship::connect(&cli, node_parent.id.unwrap(), node_child.id.unwrap(), "Likes".to_string(), None);
         assert!(res.is_ok());
 
         let rel = res.unwrap();
         assert!(rel.id > 0);
+    }
+
+    #[test]
+    pub fn test_connect_nodes_with_type() {
+        let cli = get_client();
+
+        let mut node_parent: node::Node = node::Node::new();
+        assert!(node_parent.add(&cli));
+
+        let mut node_child: node::Node = node::Node::new();
+        assert!(node_child.add(&cli));
+
+        let res: Result<relationship::Relationship<TestRelationshipData>, String> = relationship::Relationship::connect(&cli, node_parent.id.unwrap(), node_child.id.unwrap(), "Likes".to_string(), Some(TestRelationshipData { name: "Steve".to_string(), level: -6, }));
+        assert!(res.is_ok());
+
+        let rel = res.unwrap();
+        assert!(rel.id > 0);
+        assert_eq!(rel.properties.as_ref().unwrap().name, "Steve");
+        assert_eq!(rel.properties.as_ref().unwrap().level, -6);
     }
 }
