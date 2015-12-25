@@ -22,6 +22,7 @@ impl ClientBuilder {
         headers.set(Accept(vec![qitem(Mime(TopLevel::Application, SubLevel::Json, vec![]))]));
         headers.set(AcceptCharset(vec![qitem(Charset::Ext("utf-8".to_owned()))]));
 
+        info!("Connection created");
         ClientBuilder {
             client: Client {
                 url: "http://localhost".to_string(),

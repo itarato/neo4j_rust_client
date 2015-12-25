@@ -100,8 +100,11 @@ impl<T: Encodable + Decodable> Node<T> {
         let res = client.delete(path)
             .send()
             .unwrap();
+
+        info!("Node deleted: {}", self.id.unwrap());
         hyper::status::StatusCode::NoContent == res.status
     }
+
 }
 
 #[cfg(test)]

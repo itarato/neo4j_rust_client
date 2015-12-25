@@ -8,3 +8,4 @@ extern crate log;
 
 pub mod client;
 pub mod node;
+pub mod relationship;
