@@ -3,6 +3,7 @@ use rustc_serialize::{json, Encodable, Decodable};
 use hyper;
 
 pub struct Node <T: Encodable = NodeUnidentifiedData> {
+    // TODO make accessor a method to avoid mutation
     pub id: Option<u64>,
     labels: Vec<String>,
     properties: Option<T>,
