@@ -59,6 +59,16 @@ let node: Node<MyNodeType> = node::Node::get(123).unwrap();
 println!("Name of node {} is: {:?}, labels are: {:?}", node.id, node.properties.unwrap().name, node.labels);
 ```
 
+Connecting nodes:
+
+```rust
+let cli = client::ClientBuilder::new()
+    .credential("myusername".to_string(), "mypassword".to_string())
+    .get();
+
+assert!(relationship::Relationship::connect(&cli, node_parent.id.unwrap(), node_child.id.unwrap(), "Likes".to_string(), ()));
+```
+
 
 Test (for developers)
 ---------------------
