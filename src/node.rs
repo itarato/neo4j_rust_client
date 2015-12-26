@@ -38,18 +38,18 @@ impl<T: Encodable + Decodable> Node<T> {
         let mut res_raw = String::new();
         let mut res = match client.get(path).send() {
             Ok(res) => res,
-            Err(_) => return Err(Error::NetworkError("Network error".to_string())),
+            Err(_) => return Err(Error::NetworkError),
         };
 
         if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::NetworkError(format!("Request error: {:?}", res.status)));
+            return Err(Error::ResponseError);
         }
 
         let mut node = Self::new();
         let _ = res.read_to_string(&mut res_raw);
         let node_json: NodeDataResponse<T> = match json::decode(&res_raw) {
             Ok(res) => res,
-            Err(_) => return Err(Error::DataError(format!("Response format is invalid: {:?}", res_raw))),
+            Err(_) => return Err(Error::DataError),
         };
         node.update_from_response_node_json(node_json);
 
@@ -72,6 +72,10 @@ impl<T: Encodable + Decodable> Node<T> {
     }
 
     pub fn add(&mut self, client: &::client::Client) -> Result<(), Error> {
+        if self.get_id().is_some() {
+            return Err(Error::IntegrityError);
+        }
+
         let mut response_raw = String::new();
         let props_string: String = match self.properties {
             Some(ref props) => json::encode(props).unwrap(),
@@ -80,16 +84,16 @@ impl<T: Encodable + Decodable> Node<T> {
 
         let mut res = match client.post("/db/data/node".to_string()).body(&props_string).send() {
             Ok(res) => res,
-            _ => return Err(Error::NetworkError("Request error".to_string())),
+            _ => return Err(Error::NetworkError),
         };
         if hyper::status::StatusCode::Created != res.status {
-            return Err(Error::NetworkError("Invalid operation error".to_string()));
+            return Err(Error::ResponseError);
         }
 
         let _ = res.read_to_string(&mut response_raw);
         let node_json:NodeDataResponse<T> = match json::decode(&response_raw) {
             Ok(s) => s,
-            _ => return Err(Error::DataError(format!("Response format is invalid: {:?}", response_raw))),
+            _ => return Err(Error::DataError),
         };
         self.update_from_response_node_json(node_json);
 
@@ -98,30 +102,42 @@ impl<T: Encodable + Decodable> Node<T> {
     }
 
     pub fn add_labels(&mut self, client: &::client::Client, labels: Vec<String>) -> Result<(), Error> {
-        // TODO error if id does not exist
+        if self.get_id().is_none() {
+            return Err(Error::IntegrityError);
+        }
+
         let labels_raw:String = ["[\"", &*labels.join("\", \""), "\"]"].concat();
         let path:String = format!("/db/data/node/{}/labels", self.id.unwrap());
         let res = match client.post(path).body(&*labels_raw).send() {
             Ok(res) => res,
-            _ => return Err(Error::NetworkError("Network error".to_string())),
+            _ => return Err(Error::NetworkError),
         };
 
         if hyper::status::StatusCode::NoContent != res.status {
-            return Err(Error::NetworkError("Label cannot be added.".to_string()));
+            return Err(Error::NetworkError);
         }
 
         info!("Labels {:?} added to {}", labels_raw, self.id.unwrap());
         Ok(())
     }
 
-    pub fn delete(self, client: &::client::Client) -> bool {
-        let path:String = format!("/db/data/node/{}", self.id.unwrap());
-        let res = client.delete(path)
-            .send()
-            .unwrap();
+    pub fn delete(self, client: &::client::Client) -> Result<(), Error> {
+        if self.get_id().is_none() {
+            return Err(Error::IntegrityError);
+        }
+
+        let path:String = format!("/db/data/node/{}", self.get_id().unwrap());
+        let res = match client.delete(path).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
+
+        if hyper::status::StatusCode::NoContent != res.status {
+            return Err(Error::ResponseError);
+        }
 
         info!("Node deleted: {}", self.id.unwrap());
-        hyper::status::StatusCode::NoContent == res.status
+        Ok(())
     }
 }
 
@@ -160,7 +176,7 @@ mod tests {
         assert_eq!(node.get_id(), node_reload.get_id());
         assert_eq!(node_reload.labels.len(), 0);
 
-        assert!(node.delete(&cli));
+        assert!(node.delete(&cli).is_ok());
     }
 
     #[test]
@@ -182,7 +198,7 @@ mod tests {
         assert_eq!(node_reload.labels.len(), 0);
 
         let delete_res = node.delete(&cli);
-        assert!(delete_res);
+        assert!(delete_res.is_ok());
     }
 
     #[test]
@@ -199,7 +215,7 @@ mod tests {
         assert!(node_reload.labels.iter().any(|label| label == "foo"));
         assert!(node_reload.labels.iter().any(|label| label == "bar"));
 
-        assert!(node.delete(&cli));
+        assert!(node.delete(&cli).is_ok());
     }
 
 }

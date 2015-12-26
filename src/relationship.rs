@@ -178,6 +178,8 @@ mod tests {
         assert!(rel.id > 0);
 
         assert!(rel.delete(&cli));
+        assert!(node_parent.delete(&cli).is_ok());
+        assert!(node_child.delete(&cli).is_ok());
     }
 
     #[test]
@@ -199,5 +201,7 @@ mod tests {
         assert_eq!(rel.properties.as_ref().unwrap().level, -6);
 
         assert!(rel.delete(&cli));
+        assert!(node_parent.delete(&cli).is_ok());
+        assert!(node_child.delete(&cli).is_ok());
     }
 }

@@ -1,5 +1,7 @@
 #[derive(Debug)]
 pub enum Error {
-    NetworkError(String),
-    DataError(String),
+    NetworkError,
+    ResponseError,
+    DataError,
+    IntegrityError,
 }
