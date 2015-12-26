@@ -2,6 +2,7 @@ use rustc_serialize::{json, Encodable, Decodable, Encoder};
 use std::collections::HashMap;
 use hyper;
 use std::io::Read;
+pub use types::Error;
 
 #[derive(RustcDecodable, Debug)]
 struct RelationshipMetadataResult {
@@ -10,8 +11,8 @@ struct RelationshipMetadataResult {
 
 #[derive(RustcDecodable, Debug)]
 struct RelationshipResult<T: Decodable> {
-    pub start: String,
-    pub end: String,
+    start: String,
+    end: String,
     metadata: RelationshipMetadataResult,
     data: T,
 }
@@ -43,7 +44,7 @@ pub struct Relationship<T = RelationshipUnidentifiedResult> {
 }
 
 impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> {
-    pub fn connect(cli: &::client::Client, id_from: u64, id_to: u64, type_name: String, properties: Option<T>) -> Result<Relationship<T>, String> {
+    pub fn connect(cli: &::client::Client, id_from: u64, id_to: u64, type_name: String, properties: Option<T>) -> Result<Relationship<T>, Error> {
         let mut rel_data:HashMap<String, RelationshipDataField<T>> = HashMap::new();
         let path: String = format!("/db/data/node/{}", id_to);
         rel_data.insert("to".to_string(), RelationshipDataField::Text(cli.build_uri(path)));
@@ -56,18 +57,21 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
         let rel_data_string = json::encode(&rel_data).unwrap();
 
         let path:String = format!("/db/data/node/{}/relationships", id_from);
-        let mut res = cli.post(path)
-            .body(&rel_data_string)
-            .send()
-            .unwrap();
+        let mut res = match cli.post(path).body(&rel_data_string).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
 
         if hyper::status::StatusCode::Created != res.status {
-            return Err("Network error".to_string());
+            return Err(Error::ResponseError);
         }
 
         let mut res_raw = String::new();
         let _ = res.read_to_string(&mut res_raw);
-        let rel_json:RelationshipResult<T> = json::decode(&res_raw).unwrap();
+        let rel_json:RelationshipResult<T> = match json::decode(&res_raw) {
+            Ok(j) => j,
+            _ => return Err(Error::DataError),
+        };
         let rel = Relationship {
             id: rel_json.metadata.id,
             type_name: type_name.clone(),
@@ -129,7 +133,7 @@ impl RelationshipCollection {
  * Helper functions.
  */
 
- fn get_node_id_from_url(url: String) -> u64 {
+fn get_node_id_from_url(url: String) -> u64 {
     url.split("node/").collect::<Vec<&str>>().last().unwrap().parse::<u64>().unwrap()
 }
 
@@ -143,6 +147,7 @@ mod tests {
     use client;
     use relationship;
     use node;
+    pub use types::Error;
 
     #[derive(RustcEncodable, RustcDecodable)]
     struct TestRelationshipData {
@@ -171,7 +176,7 @@ mod tests {
         let mut node_child: node::Node = node::Node::new();
         assert!(node_child.add(&cli).is_ok());
 
-        let res: Result<relationship::Relationship, String> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), None);
+        let res: Result<relationship::Relationship, Error> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), None);
         assert!(res.is_ok());
 
         let rel = res.unwrap();
@@ -192,7 +197,7 @@ mod tests {
         let mut node_child: node::Node = node::Node::new();
         assert!(node_child.add(&cli).is_ok());
 
-        let res: Result<relationship::Relationship<TestRelationshipData>, String> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), Some(TestRelationshipData { name: "Steve".to_string(), level: -6, }));
+        let res: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), Some(TestRelationshipData { name: "Steve".to_string(), level: -6, }));
         assert!(res.is_ok());
 
         let rel = res.unwrap();
