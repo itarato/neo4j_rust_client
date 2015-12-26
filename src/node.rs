@@ -1,6 +1,7 @@
 use std::io::Read;
 use rustc_serialize::{json, Encodable, Decodable};
 use hyper;
+pub use types::Error;
 
 pub struct Node <T: Encodable = NodeUnidentifiedData> {
     id: Option<u64>,
@@ -32,23 +33,27 @@ impl<T: Encodable + Decodable> Node<T> {
         }
     }
 
-    pub fn get(client: &::client::Client, id: u64) -> Option<Node<T>> {
+    pub fn get(client: &::client::Client, id: u64) -> Result<Node<T>, Error> {
         let path: String = format!("/db/data/node/{}", id);
         let mut res_raw = String::new();
-        let mut res = client.get(path)
-            .send()
-            .unwrap();
+        let mut res = match client.get(path).send() {
+            Ok(res) => res,
+            Err(_) => return Err(Error::NetworkError("Network error".to_string())),
+        };
 
         if hyper::status::StatusCode::Ok != res.status {
-            return None;
+            return Err(Error::NetworkError(format!("Request error: {:?}", res.status)));
         }
 
         let mut node = Self::new();
         let _ = res.read_to_string(&mut res_raw);
-        let node_json: NodeDataResponse<T> = json::decode(&res_raw).unwrap();
+        let node_json: NodeDataResponse<T> = match json::decode(&res_raw) {
+            Ok(res) => res,
+            Err(_) => return Err(Error::DataError(format!("Response format is invalid: {:?}", res_raw))),
+        };
         node.update_from_response_node_json(node_json);
 
-        Some(node)
+        Ok(node)
     }
 
     pub fn get_id(&self) -> Option<u64> {
@@ -66,24 +71,30 @@ impl<T: Encodable + Decodable> Node<T> {
         self.properties = Some(props);
     }
 
-    pub fn add(&mut self, client: &::client::Client) -> bool {
+    pub fn add(&mut self, client: &::client::Client) -> Result<(), Error> {
         let mut response_raw = String::new();
         let props_string: String = match self.properties {
             Some(ref props) => json::encode(props).unwrap(),
             None => String::new(),
         };
 
-        let mut res = client.post("/db/data/node".to_string())
-            .body(&props_string)
-            .send()
-            .unwrap();
+        let mut res = match client.post("/db/data/node".to_string()).body(&props_string).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError("Request error".to_string())),
+        };
+        if hyper::status::StatusCode::Created != res.status {
+            return Err(Error::NetworkError("Invalid operation error".to_string()));
+        }
 
         let _ = res.read_to_string(&mut response_raw);
-        let node_json:NodeDataResponse<T> = json::decode(&response_raw).unwrap();
+        let node_json:NodeDataResponse<T> = match json::decode(&response_raw) {
+            Ok(s) => s,
+            _ => return Err(Error::DataError(format!("Response format is invalid: {:?}", response_raw))),
+        };
         self.update_from_response_node_json(node_json);
 
-        info!("Node created, id: {}", self.id.unwrap());
-        hyper::status::StatusCode::Created == res.status
+        info!("Node created, id: {}", self.get_id().unwrap());
+        Ok(())
     }
 
     pub fn add_labels(&mut self, client: &::client::Client, labels: Vec<String>) -> bool {
@@ -138,7 +149,7 @@ mod tests {
     pub fn test_node_create_no_type() {
         let cli = get_client();
         let mut node: node::Node = node::Node::new();
-        assert!(node.add(&cli));
+        assert!(node.add(&cli).is_ok());
         assert!(node.get_id().is_some());
 
         let node_reload: node::Node = node::Node::get(&cli, node.get_id().unwrap()).unwrap();
@@ -157,7 +168,7 @@ mod tests {
         let cli = get_client();
         let mut node: node::Node<TestNodeData> = node::Node::new();
         node.set_properties(node_data);
-        assert!(node.add(&cli));
+        assert!(node.add(&cli).is_ok());
         assert!(node.get_id().is_some());
 
         let node_reload: node::Node<TestNodeData> = node::Node::get(&cli, node.get_id().unwrap()).unwrap();
@@ -174,7 +185,7 @@ mod tests {
     pub fn test_node_labels() {
         let cli = get_client();
         let mut node: node::Node = node::Node::new();
-        assert!(node.add(&cli));
+        assert!(node.add(&cli).is_ok());
         assert!(node.id.is_some());
 
         assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]));

@@ -166,10 +166,10 @@ mod tests {
         let cli = get_client();
 
         let mut node_parent: node::Node = node::Node::new();
-        assert!(node_parent.add(&cli));
+        assert!(node_parent.add(&cli).is_ok());
 
         let mut node_child: node::Node = node::Node::new();
-        assert!(node_child.add(&cli));
+        assert!(node_child.add(&cli).is_ok());
 
         let res: Result<relationship::Relationship, String> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), None);
         assert!(res.is_ok());
@@ -185,10 +185,10 @@ mod tests {
         let cli = get_client();
 
         let mut node_parent: node::Node = node::Node::new();
-        assert!(node_parent.add(&cli));
+        assert!(node_parent.add(&cli).is_ok());
 
         let mut node_child: node::Node = node::Node::new();
-        assert!(node_child.add(&cli));
+        assert!(node_child.add(&cli).is_ok());
 
         let res: Result<relationship::Relationship<TestRelationshipData>, String> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), Some(TestRelationshipData { name: "Steve".to_string(), level: -6, }));
         assert!(res.is_ok());
