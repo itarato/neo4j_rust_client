@@ -3,8 +3,7 @@ use rustc_serialize::{json, Encodable, Decodable};
 use hyper;
 
 pub struct Node <T: Encodable = NodeUnidentifiedData> {
-    // TODO make accessor a method to avoid mutation
-    pub id: Option<u64>,
+    id: Option<u64>,
     labels: Vec<String>,
     properties: Option<T>,
 }
@@ -50,6 +49,10 @@ impl<T: Encodable + Decodable> Node<T> {
         node.update_from_response_node_json(node_json);
 
         Some(node)
+    }
+
+    pub fn get_id(&self) -> Option<u64> {
+        self.id
     }
 
     fn update_from_response_node_json(&mut self, node_json: NodeDataResponse<T>) {
@@ -136,10 +139,10 @@ mod tests {
         let cli = get_client();
         let mut node: node::Node = node::Node::new();
         assert!(node.add(&cli));
-        assert!(node.id.is_some());
+        assert!(node.get_id().is_some());
 
-        let node_reload: node::Node = node::Node::get(&cli, node.id.unwrap()).unwrap();
-        assert_eq!(node.id, node_reload.id);
+        let node_reload: node::Node = node::Node::get(&cli, node.get_id().unwrap()).unwrap();
+        assert_eq!(node.get_id(), node_reload.get_id());
         assert_eq!(node_reload.labels.len(), 0);
 
         assert!(node.delete(&cli));
@@ -155,10 +158,10 @@ mod tests {
         let mut node: node::Node<TestNodeData> = node::Node::new();
         node.set_properties(node_data);
         assert!(node.add(&cli));
-        assert!(node.id.is_some());
+        assert!(node.get_id().is_some());
 
-        let node_reload: node::Node<TestNodeData> = node::Node::get(&cli, node.id.unwrap()).unwrap();
-        assert_eq!(node.id, node_reload.id);
+        let node_reload: node::Node<TestNodeData> = node::Node::get(&cli, node.get_id().unwrap()).unwrap();
+        assert_eq!(node.get_id(), node_reload.get_id());
         assert_eq!(node_reload.properties.as_ref().unwrap().name, "John Doe");
         assert_eq!(node_reload.properties.as_ref().unwrap().level, -42);
         assert_eq!(node_reload.labels.len(), 0);
@@ -176,7 +179,7 @@ mod tests {
 
         assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]));
 
-        let node_reload: node::Node = node::Node::get(&cli, node.id.unwrap()).unwrap();
+        let node_reload: node::Node = node::Node::get(&cli, node.get_id().unwrap()).unwrap();
         assert_eq!(node_reload.labels.len(), 2);
         assert!(node_reload.labels.iter().any(|label| label == "foo"));
         assert!(node_reload.labels.iter().any(|label| label == "bar"));
