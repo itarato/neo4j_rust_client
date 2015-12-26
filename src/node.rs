@@ -97,17 +97,21 @@ impl<T: Encodable + Decodable> Node<T> {
         Ok(())
     }
 
-    pub fn add_labels(&mut self, client: &::client::Client, labels: Vec<String>) -> bool {
+    pub fn add_labels(&mut self, client: &::client::Client, labels: Vec<String>) -> Result<(), Error> {
         // TODO error if id does not exist
         let labels_raw:String = ["[\"", &*labels.join("\", \""), "\"]"].concat();
         let path:String = format!("/db/data/node/{}/labels", self.id.unwrap());
-        let res = client.post(path)
-            .body(&*labels_raw)
-            .send()
-            .unwrap();
+        let res = match client.post(path).body(&*labels_raw).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError("Network error".to_string())),
+        };
+
+        if hyper::status::StatusCode::NoContent != res.status {
+            return Err(Error::NetworkError("Label cannot be added.".to_string()));
+        }
 
         info!("Labels {:?} added to {}", labels_raw, self.id.unwrap());
-        hyper::status::StatusCode::NoContent == res.status
+        Ok(())
     }
 
     pub fn delete(self, client: &::client::Client) -> bool {
@@ -188,7 +192,7 @@ mod tests {
         assert!(node.add(&cli).is_ok());
         assert!(node.id.is_some());
 
-        assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]));
+        assert!(node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]).is_ok());
 
         let node_reload: node::Node = node::Node::get(&cli, node.get_id().unwrap()).unwrap();
         assert_eq!(node_reload.labels.len(), 2);
