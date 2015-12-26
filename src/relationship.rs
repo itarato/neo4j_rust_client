@@ -16,21 +16,6 @@ struct RelationshipResult<T: Decodable> {
     data: T,
 }
 
-impl<T: Decodable> RelationshipResult<T> {
-    // fn get_start_id(&self) -> u64 {
-    //     get_node_id_from_url(self.start.clone())
-    // }
-
-    // fn get_end_id(&self) -> u64 {
-    //     get_node_id_from_url(self.end.clone())
-    // }
-}
-
-// TODO make it a trait
-fn get_node_id_from_url(url: String) -> u64 {
-    url.split("node/").collect::<Vec<&str>>().last().unwrap().parse::<u64>().unwrap()
-}
-
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct RelationshipUnidentifiedResult;
 
@@ -139,6 +124,18 @@ impl RelationshipCollection {
         Ok(rels)
     }
 }
+
+/******************************************************************************
+ * Helper functions.
+ */
+
+ fn get_node_id_from_url(url: String) -> u64 {
+    url.split("node/").collect::<Vec<&str>>().last().unwrap().parse::<u64>().unwrap()
+}
+
+/******************************************************************************
+ * Tests.
+ */
 
 #[cfg(test)]
 mod tests {
