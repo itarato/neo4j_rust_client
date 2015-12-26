@@ -61,24 +61,26 @@ impl Client {
     }
 
     pub fn is_alive(&self) -> bool {
-        // TODO make it not panic dependant
-        let response = self.get("/db/data".to_string())
-            .send()
-            .unwrap();
-        hyper::status::StatusCode::Ok == response.status
+        match self.get("/db/data".to_string()).send() {
+            Ok(res) => hyper::status::StatusCode::Ok == res.status,
+            _ => false,
+        }
     }
 
-    // TODO make it generic by using client::request with request type.
+    fn request(&self, method: hyper::method::Method, path: String) -> hyper::client::RequestBuilder {
+        self.client.request(method, &self.build_uri(path)).headers(self.headers.clone())
+    }
+
     pub fn get(&self, path: String) -> hyper::client::RequestBuilder {
-        self.client.get(&self.build_uri(path)).headers(self.headers.clone())
+        self.request(hyper::method::Method::Get, path)
     }
 
     pub fn post(&self, path: String) -> hyper::client::RequestBuilder {
-        self.client.post(&self.build_uri(path)).headers(self.headers.clone())
+        self.request(hyper::method::Method::Post, path)
     }
 
     pub fn delete(&self, path: String) -> hyper::client::RequestBuilder {
-        self.client.delete(&self.build_uri(path)).headers(self.headers.clone())
+        self.request(hyper::method::Method::Delete, path)
     }
 }
 
