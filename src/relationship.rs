@@ -95,8 +95,6 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
     }
 }
 
-pub type RelationshipCollectionResult = Vec<RelationshipResult<RelationshipUnidentifiedResult>>;
-
 pub struct RelationshipCollection;
 
 impl RelationshipCollection {
