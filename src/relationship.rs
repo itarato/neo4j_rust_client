@@ -84,14 +84,19 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
         Ok(rel)
     }
 
-    pub fn delete(self, cli: &::client::Client) -> bool {
+    pub fn delete(self, cli: &::client::Client) -> Result<(), Error> {
         let path:String = format!("/db/data/relationship/{}", self.id);
-        let res = cli.delete(path)
-            .send()
-            .unwrap();
+        let res = match cli.delete(path).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
+
+        if hyper::status::StatusCode::NoContent != res.status {
+            return Err(Error::ResponseError);
+        }
 
         info!("Relationship deleted: {}", self.id);
-        hyper::status::StatusCode::NoContent == res.status
+        Ok(())
     }
 }
 
@@ -180,7 +185,7 @@ mod tests {
         let rel = res.unwrap();
         assert!(rel.id > 0);
 
-        assert!(rel.delete(&cli));
+        assert!(rel.delete(&cli).is_ok());
         assert!(node_parent.delete(&cli).is_ok());
         assert!(node_child.delete(&cli).is_ok());
     }
@@ -203,7 +208,7 @@ mod tests {
         assert_eq!(rel.properties.as_ref().unwrap().name, "Steve");
         assert_eq!(rel.properties.as_ref().unwrap().level, -6);
 
-        assert!(rel.delete(&cli));
+        assert!(rel.delete(&cli).is_ok());
         assert!(node_parent.delete(&cli).is_ok());
         assert!(node_child.delete(&cli).is_ok());
     }
