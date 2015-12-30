@@ -1,4 +1,4 @@
-use rustc_serialize::{json, Encodable};
+use rustc_serialize::{json, Encodable, Decodable};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::io::Read;
@@ -19,6 +19,11 @@ pub enum RelationshipType {
 pub enum RelationshipDirection {
     In,
     Out,
+}
+
+enum ResultNumericity {
+    One,
+    Multiple,
 }
 
 #[derive(RustcDecodable, Debug)]
@@ -70,7 +75,6 @@ impl PathBuilder {
         };
 
         instance.param.to = instance.cli.as_ref().build_uri(format!("/db/data/node/{}", to));
-
         instance
     }
 
@@ -86,7 +90,18 @@ impl PathBuilder {
     // }
 
     pub fn get_all(&self) -> Result<Vec<Path>, Error> {
-        let path = format!("/db/data/node/{}/paths", self.from);
+        self.get(ResultNumericity::Multiple)
+    }
+
+    pub fn get_one(&self) -> Result<Path, Error> {
+        self.get(ResultNumericity::One)
+    }
+
+    fn get<T: Decodable>(&self, result_numericity: ResultNumericity) -> Result<T, Error> {
+        let path = match result_numericity {
+            ResultNumericity::One => format!("/db/data/node/{}/path", self.from),
+            ResultNumericity::Multiple => format!("/db/data/node/{}/paths", self.from),
+        };
         let payload = match json::encode(&self.param) {
             Ok(s) => s,
             _ => return Err(Error::DataError),
@@ -98,7 +113,7 @@ impl PathBuilder {
             _ => return Err(Error::NetworkError),
         };
         let _ = res.read_to_string(&mut res_war);
-        Ok(match json::decode(&res_war) {
+        Ok(match json::decode::<T>(&res_war) {
             Ok(obj) => obj,
             _ => return Err(Error::DataError),
         })
