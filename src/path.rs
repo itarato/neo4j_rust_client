@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::io::Read;
 pub use types::Error;
 
+#[derive(Debug)]
 pub enum Algorithm {
     ShortestPath,
     AllSimplePaths,
@@ -78,14 +79,19 @@ impl PathBuilder {
         instance
     }
 
-    pub fn shortest_path(mut self, max_depth: usize) -> PathBuilder {
-        self.param.algorithm = "shortestPath".to_string();
+    pub fn path_with_depth(mut self, algorithm: Algorithm, max_depth: usize) -> PathBuilder {
+        self.param.algorithm = (match algorithm {
+            Algorithm::ShortestPath => "shortestPath",
+            Algorithm::AllSimplePaths => "allSimplePaths",
+            Algorithm::AllPaths => "allPaths",
+            _ => panic!("Algorithm is not compatible with depth-only method: {:?}", algorithm),
+        }).to_string();
         self.param.max_depth = Some(max_depth);
         self
     }
 
     // pub fn relationships(mut self) -> PathBuilder {
-    //     // TODO discover relationships settings form Neo4J api
+    //     // TODO discover relationship settings form Neo4J api
     //     self
     // }
 
@@ -166,7 +172,7 @@ mod tests {
         let (cli, rels, nodes) = setup();
 
         let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[3].get_id().unwrap())
-            .shortest_path(100);
+            .path_with_depth(path::Algorithm::ShortestPath, 3);
         let paths = path_builder.get_all().unwrap();
         assert_eq!(0, paths.len());
 
@@ -183,7 +189,7 @@ mod tests {
         let (cli, rels, nodes) = setup();
 
         let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
-            .shortest_path(100);
+            .path_with_depth(path::Algorithm::ShortestPath, 3);
         let p = path_builder.get_one();
         assert!(p.is_ok());
 
@@ -200,9 +206,43 @@ mod tests {
         let (cli, rels, nodes) = setup();
 
         let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
-            .shortest_path(100);
+            .path_with_depth(path::Algorithm::ShortestPath, 3);
         let paths = path_builder.get_all().unwrap();
         assert_eq!(1, paths.len());
+
+        for rel in rels {
+            assert!(rel.delete(cli.as_ref()).is_ok());
+        }
+        for n in nodes {
+            assert!(n.delete(cli.as_ref()).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_get_one_all_simple_path() {
+        let (cli, rels, nodes) = setup();
+
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
+            .path_with_depth(path::Algorithm::AllSimplePaths, 3);
+        let p = path_builder.get_one();
+        assert!(p.is_ok());
+
+        for rel in rels {
+            assert!(rel.delete(cli.as_ref()).is_ok());
+        }
+        for n in nodes {
+            assert!(n.delete(cli.as_ref()).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_get_one_all_path() {
+        let (cli, rels, nodes) = setup();
+
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
+            .path_with_depth(path::Algorithm::AllPaths, 3);
+        let p = path_builder.get_one();
+        assert!(p.is_ok());
 
         for rel in rels {
             assert!(rel.delete(cli.as_ref()).is_ok());
