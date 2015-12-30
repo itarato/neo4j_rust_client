@@ -141,8 +141,9 @@ mod tests {
             .get()
     }
 
-    #[test]
-    fn test_get_shortest_path() {
+    // 1, 2 and 3 are connected, 4 is single:
+    // 1 -> 2 -> 3 | 4
+    fn setup() -> (Rc<client::Client>, Vec<relationship::Relationship>, Vec<node::Node>) {
         let cli = Rc::new(get_client());
 
         let mut node_1: node::Node = node::Node::new();
@@ -151,23 +152,63 @@ mod tests {
         assert!(node_2.add(cli.as_ref()).is_ok());
         let mut node_3: node::Node = node::Node::new();
         assert!(node_3.add(cli.as_ref()).is_ok());
-
-        let path_builder = path::PathBuilder::new(cli.clone(), node_1.get_id().unwrap(), node_3.get_id().unwrap())
-            .shortest_path(100);
-        let paths = path_builder.get_all().unwrap();
-        assert_eq!(0, paths.len());
+        let mut node_4: node::Node = node::Node::new();
+        assert!(node_4.add(cli.as_ref()).is_ok());
 
         let rel_1: relationship::Relationship = relationship::Relationship::connect(cli.as_ref(), node_1.get_id().unwrap(), node_2.get_id().unwrap(), "Relate".to_string(), None).unwrap();
         let rel_2: relationship::Relationship = relationship::Relationship::connect(cli.as_ref(), node_2.get_id().unwrap(), node_3.get_id().unwrap(), "Relate".to_string(), None).unwrap();
 
-        let paths_reloaded = path_builder.get_all().unwrap();
-        assert_eq!(1, paths_reloaded.len());
+        (cli, vec![rel_1, rel_2], vec![node_1, node_2, node_3, node_4])
+    }
 
-        assert!(rel_1.delete(cli.as_ref()).is_ok());
-        assert!(rel_2.delete(cli.as_ref()).is_ok());
+    #[test]
+    fn test_get_no_shortest_path() {
+        let (cli, rels, nodes) = setup();
 
-        assert!(node_3.delete(cli.as_ref()).is_ok());
-        assert!(node_2.delete(cli.as_ref()).is_ok());
-        assert!(node_1.delete(cli.as_ref()).is_ok());
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[3].get_id().unwrap())
+            .shortest_path(100);
+        let paths = path_builder.get_all().unwrap();
+        assert_eq!(0, paths.len());
+
+        for rel in rels {
+            assert!(rel.delete(cli.as_ref()).is_ok());
+        }
+        for n in nodes {
+            assert!(n.delete(cli.as_ref()).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_get_one_shortest_path() {
+        let (cli, rels, nodes) = setup();
+
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
+            .shortest_path(100);
+        let p = path_builder.get_one();
+        assert!(p.is_ok());
+
+        for rel in rels {
+            assert!(rel.delete(cli.as_ref()).is_ok());
+        }
+        for n in nodes {
+            assert!(n.delete(cli.as_ref()).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_get_shortest_paths() {
+        let (cli, rels, nodes) = setup();
+
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
+            .shortest_path(100);
+        let paths = path_builder.get_all().unwrap();
+        assert_eq!(1, paths.len());
+
+        for rel in rels {
+            assert!(rel.delete(cli.as_ref()).is_ok());
+        }
+        for n in nodes {
+            assert!(n.delete(cli.as_ref()).is_ok());
+        }
     }
 }
