@@ -1,6 +1,7 @@
-use rustc_serialize::{json, Encodable};
+use rustc_serialize::{json, Encodable, Decodable};
 pub use types::Error;
 use hyper;
+use std::io::Read;
 
 #[derive(RustcEncodable)]
 struct CypherStatement<T> {
@@ -13,10 +14,25 @@ struct CypherStatements<T: Encodable> {
     statements: Vec<CypherStatement<T>>,
 }
 
+#[derive(RustcDecodable)]
+pub struct CypherResult<T: Decodable> {
+    pub columns: Vec<String>,
+    pub data: T,
+}
+
+#[derive(RustcDecodable)]
+pub struct CypherResultsResponse<T: Decodable> {
+    pub results: Vec<CypherResult<T>>,
+    pub errors: Vec<String>,
+}
+
+#[derive(RustcDecodable, RustcEncodable, Debug)]
+pub struct CypherUnidentifiedData;
+
 pub struct Cypher;
 
 impl Cypher {
-    pub fn query<T: Encodable>(cli: &::client::Client, statement: String, parameters: T) -> Result<(), Error> {
+    pub fn query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(cli: &::client::Client, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
         let statement = CypherStatement {
             statement: statement,
             parameters: Some(parameters),
@@ -28,7 +44,7 @@ impl Cypher {
             Ok(s) => s,
             _ => return Err(Error::DataError),
         };
-        let res = match cli.post("/db/data/transaction/commit".to_string()).body(&payload).send() {
+        let mut res = match cli.post("/db/data/transaction/commit".to_string()).body(&payload).send() {
             Ok(res) => res,
             _ => return Err(Error::NetworkError),
         };
@@ -36,7 +52,15 @@ impl Cypher {
             return Err(Error::ResponseError);
         }
 
-        Ok(())
+        let mut res_raw = String::new();
+        let _ = res.read_to_string(&mut res_raw);
+
+        let result: CypherResultsResponse<D> = match json::decode(&res_raw) {
+            Ok(obj) => obj,
+            _ => return Err(Error::DataError),
+        };
+
+        Ok(result)
     }
 }
 
@@ -45,6 +69,19 @@ mod tests {
     use std::env;
     use client;
     use cypher;
+    use node;
+    use rustc_serialize::{Encodable};
+    use std::collections::HashMap;
+
+    #[derive(RustcEncodable, RustcDecodable)]
+    struct TestNodeProps {
+        name: String,
+    }
+
+    #[derive(RustcDecodable)]
+    struct TestQueryResult {
+        row: Vec<String>,
+    }
 
     fn get_client() -> ::client::Client {
         let password = env::var("RUST_NEO4J_CLIENT_TEST_PASSWORD");
@@ -60,7 +97,18 @@ mod tests {
     #[test]
     pub fn test_simple_query_with_commit() {
         let cli = get_client();
-        let res = cypher::Cypher::query(&cli, "START n=node(1) RETURN n".to_string(), ());
+
+        let mut node = node::Node::new();
+        node.set_properties(TestNodeProps { name: "Steve".to_string() });
+        assert!(node.add(&cli).is_ok());
+
+        let mut params = HashMap::new();
+        params.insert("id".to_string(), node.get_id().unwrap());
+        let res = cypher::Cypher::query::<HashMap<String, u64>, Vec<TestQueryResult>>(&cli, "START n=node({id}) RETURN n.name".to_string(), params);
         assert!(res.is_ok());
+
+        assert_eq!(res.unwrap().results[0].data[0].row[0], "Steve");
+
+        assert!(node.delete(&cli).is_ok());
     }
 }
