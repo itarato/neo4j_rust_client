@@ -55,6 +55,14 @@ impl ClientBuilder {
     }
 }
 
+macro_rules! request_fn {
+    ($name:ident, $req_type:ident) => {
+        pub fn $name(&self, path: String) -> hyper::client::RequestBuilder {
+            self.request(hyper::method::Method::$req_type, path)
+        }
+    }
+}
+
 impl Client {
     pub fn build_uri(&self, path: String) -> String {
         format!("{}:{}{}", self.url, self.port, path)
@@ -71,22 +79,10 @@ impl Client {
         self.client.request(method, &self.build_uri(path)).headers(self.headers.clone())
     }
 
-    pub fn get(&self, path: String) -> hyper::client::RequestBuilder {
-        self.request(hyper::method::Method::Get, path)
-    }
-
-    pub fn post(&self, path: String) -> hyper::client::RequestBuilder {
-        self.request(hyper::method::Method::Post, path)
-    }
-
-    pub fn delete(&self, path: String) -> hyper::client::RequestBuilder {
-        self.request(hyper::method::Method::Delete, path)
-    }
-
-    // TODO turn to a macro
-    pub fn put(&self, path: String) -> hyper::client::RequestBuilder {
-        self.request(hyper::method::Method::Put, path)
-    }
+    request_fn! { get, Get }
+    request_fn! { post, Post }
+    request_fn! { delete, Delete }
+    request_fn! { put, Put }
 }
 
 #[cfg(test)]
