@@ -60,6 +60,16 @@ impl<T: Encodable + Decodable> Node<T> {
         self.id
     }
 
+    // TODO add test
+    pub fn get_labels(&self) -> &Vec<String> {
+        self.labels.as_ref()
+    }
+
+    // TODO add test
+    pub fn get_properties(&self) -> &Option<T> {
+        &self.properties
+    }
+
     fn update_from_response_node_json(&mut self, node_json: NodeDataResponse<T>) {
         // TODO check collision if exist and a different would be set
         self.id = Some(node_json.metadata.id);
@@ -67,6 +77,7 @@ impl<T: Encodable + Decodable> Node<T> {
         self.properties = Some(node_json.data);
     }
 
+    // TODO make it return the self
     pub fn set_properties(&mut self, props: T) {
         self.properties = Some(props);
     }

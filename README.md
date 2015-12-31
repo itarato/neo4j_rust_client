@@ -36,8 +36,6 @@ fn main() {
 
     // Create node.
     node.add(&cli);
-    assert!(node.id.is_some());
-    assert!(node.properties.unwrap().name, "John Doe");
 
     // Add labels.
     node.add_labels(&cli, vec!["foo".to_string(), "bar".to_string()]);
@@ -47,27 +45,95 @@ fn main() {
 }
 ```
 
-Fetching an existing node:
+# Client
 
-```rust
-#[derive(RustcEncodable)]
-struct MyNodeType {
-    name: String,
-}
-
-let node: Node<MyNodeType> = node::Node::get(123).unwrap();
-println!("Name of node {} is: {:?}, labels are: {:?}", node.id, node.properties.unwrap().name, node.labels);
-```
-
-Connecting nodes:
+Client is necessary for the resources to operate on. Setting up a credential is optional.
 
 ```rust
 let cli = client::ClientBuilder::new()
     .credential("myusername".to_string(), "mypassword".to_string())
     .get();
-
-assert!(relationship::Relationship::connect(&cli, node_parent.id.unwrap(), node_child.id.unwrap(), "Likes".to_string(), ()));
 ```
+
+Check if the connection is correct and established:
+
+```rust
+if !cli.is_alive() {
+    // Error handling.
+}
+```
+
+# Node
+
+Creating an empty (type-less) node:
+
+```rust
+let n: node::Node = node::Node::new().add(&cli).unwrap();
+
+// Verify:
+println!("New node ID is: {}", n.get_id().unwrap());
+```
+
+Creating node with data (typed):
+
+```rust
+#[derive(RustcDecodable)]
+struct MyData {
+    name: String,
+    level: f64,
+}
+
+let mut n: node::Node<MyData> = node::Node::new();
+n.set_properties(MyData {
+   name: "Acme Corp".to_string(),
+   level: 10.2,
+});
+n.add(&cli);
+```
+
+Add labels:
+
+```rust
+let mut n = /* fetch or create */;
+n.add_labels(&cli);
+```
+
+Fetch node (type-less and typed):
+
+```rust
+// Without data:
+let n = node::Node::get(&cli, <NODE_ID>).unwrap();
+
+// With data:
+let n: node::Node<MyData> = node::Node::get(&cli, <NODE_ID>).unwrap();
+
+// Assuming T from Node<T> implements Display.
+println!("Node with id: {} has labels: {:?} and properties: {:?}", node.get_id().unwrap(), node.get_labels(), node.get_properties().unwrap());
+```
+
+Delete node:
+
+```rust
+n.delete(&cli);
+```
+
+# Index
+
+Add index for a property:
+
+```rust
+index::Index::new("name_index".to_string(), "name".to_string()).create(&cli);
+```
+
+Delete existing index:
+
+```rust
+index::Index::new("name_index".to_string(), "name".to_string()).delete(&cli);
+```
+
+# Relationships
+
+
 
 
 Test (for developers)
