@@ -143,6 +143,11 @@ mod tests {
     use std::rc::Rc;
     pub use types::Error;
 
+    #[derive(RustcEncodable, RustcDecodable)]
+    struct TestWeightedType {
+        weight: f64,
+    }
+
     fn get_client() -> ::client::Client {
         let password = env::var("RUST_NEO4J_CLIENT_TEST_PASSWORD");
         let username = env::var("RUST_NEO4J_CLIENT_TEST_USERNAME");
@@ -156,7 +161,7 @@ mod tests {
 
     // 1, 2 and 3 are connected, 4 is single:
     // 1 -> 2 -> 3 | 4
-    fn setup() -> (Rc<client::Client>, Vec<relationship::Relationship>, Vec<node::Node>) {
+    fn setup() -> (Rc<client::Client>, Vec<relationship::Relationship<TestWeightedType>>, Vec<node::Node>) {
         let cli = Rc::new(get_client());
 
         let mut node_1: node::Node = node::Node::new();
@@ -168,8 +173,8 @@ mod tests {
         let mut node_4: node::Node = node::Node::new();
         assert!(node_4.add(cli.as_ref()).is_ok());
 
-        let rel_1: relationship::Relationship = relationship::Relationship::connect(cli.as_ref(), node_1.get_id().unwrap(), node_2.get_id().unwrap(), "Relate".to_string(), None).unwrap();
-        let rel_2: relationship::Relationship = relationship::Relationship::connect(cli.as_ref(), node_2.get_id().unwrap(), node_3.get_id().unwrap(), "Relate".to_string(), None).unwrap();
+        let rel_1: relationship::Relationship<TestWeightedType> = relationship::Relationship::connect(cli.as_ref(), node_1.get_id().unwrap(), node_2.get_id().unwrap(), "Relate".to_string(), Some(TestWeightedType { weight: 1.6 })).unwrap();
+        let rel_2: relationship::Relationship<TestWeightedType> = relationship::Relationship::connect(cli.as_ref(), node_2.get_id().unwrap(), node_3.get_id().unwrap(), "Relate".to_string(), Some(TestWeightedType { weight: 2.1 })).unwrap();
 
         (cli, vec![rel_1, rel_2], vec![node_1, node_2, node_3, node_4])
     }
@@ -265,12 +270,22 @@ mod tests {
 
         let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
             .path_with_weight("weight".to_string(), 1.0);
-        let p = path_builder.get_one();
-        assert!(p.is_ok());
+        let p = path_builder.get_one().unwrap();
+        assert_eq!(3.7, p.weight.unwrap());
+        assert_eq!(2, p.directions.len());
+
+        let rel_shortcut: relationship::Relationship<TestWeightedType> = relationship::Relationship::connect(cli.as_ref(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap(), "Relate".to_string(), Some(TestWeightedType { weight: 0.5 })).unwrap();
+
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
+            .path_with_weight("weight".to_string(), 1.0);
+        let p = path_builder.get_one().unwrap();
+        assert_eq!(0.5, p.weight.unwrap());
+        assert_eq!(1, p.directions.len());
 
         for rel in rels {
             assert!(rel.delete(cli.as_ref()).is_ok());
         }
+        assert!(rel_shortcut.delete(cli.as_ref()).is_ok());
         for n in nodes {
             assert!(n.delete(cli.as_ref()).is_ok());
         }
