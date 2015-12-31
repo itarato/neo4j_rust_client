@@ -157,20 +157,23 @@ pub struct RelationshipCollection;
 
 impl RelationshipCollection {
     // TODO add test
-    // TODO use typed error
-    pub fn all_for_node(cli: &::client::Client, id: u64) -> Result<Vec<Relationship>, String> {
+    pub fn all_for_node(cli: &::client::Client, id: u64) -> Result<Vec<Relationship>, Error> {
         let path = format!("/db/data/node/{}/relationships/all", id);
-        let mut res = cli.get(path)
-            .send()
-            .unwrap();
+        let mut res = match cli.get(path).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
 
         if hyper::status::StatusCode::Ok != res.status {
-            return Err("Request error".to_string());
+            return Err(Error::ResponseError);
         }
 
         let mut res_raw = String::new();
         let _ = res.read_to_string(&mut res_raw);
-        let rels_result_object = json::Json::from_str(&res_raw).unwrap();
+        let rels_result_object = match json::Json::from_str(&res_raw) {
+            Ok(rels) => rels,
+            _ => return Err(Error::DataError),
+        };
         let rels_result = rels_result_object.as_array().unwrap();
 
         let rels: Vec<Relationship> = rels_result.iter().map(|elem| {
