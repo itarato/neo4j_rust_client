@@ -156,7 +156,6 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
 pub struct RelationshipCollection;
 
 impl RelationshipCollection {
-    // TODO add test
     pub fn all_for_node(cli: &::client::Client, id: u64) -> Result<Vec<Relationship>, Error> {
         let path = format!("/db/data/node/{}/relationships/all", id);
         let mut res = match cli.get(path).send() {
@@ -295,6 +294,30 @@ mod tests {
         let res_reload: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::get(&cli, rel.id);
         assert!(res_reload.is_ok());
         assert_eq!(res_reload.unwrap().properties.unwrap().name, "Walter");
+
+        assert!(rel.delete(&cli).is_ok());
+        assert!(node_parent.delete(&cli).is_ok());
+        assert!(node_child.delete(&cli).is_ok());
+    }
+
+    #[test]
+    pub fn test_node_all_relationship_load() {
+        // TODO extract setup part
+        let cli = get_client();
+
+        let mut node_parent: node::Node = node::Node::new();
+        assert!(node_parent.add(&cli).is_ok());
+
+        let mut node_child: node::Node = node::Node::new();
+        assert!(node_child.add(&cli).is_ok());
+
+        let res: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), Some(TestRelationshipData { name: "Steve".to_string(), level: -6, }));
+        assert!(res.is_ok());
+
+        let rel = res.unwrap();
+
+        let rels = relationship::RelationshipCollection::all_for_node(&cli, node_parent.get_id().unwrap()).unwrap();
+        assert_eq!(1, rels.len());
 
         assert!(rel.delete(&cli).is_ok());
         assert!(node_parent.delete(&cli).is_ok());
