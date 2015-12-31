@@ -82,6 +82,11 @@ impl Client {
     pub fn delete(&self, path: String) -> hyper::client::RequestBuilder {
         self.request(hyper::method::Method::Delete, path)
     }
+
+    // TODO turn to a macro
+    pub fn put(&self, path: String) -> hyper::client::RequestBuilder {
+        self.request(hyper::method::Method::Put, path)
+    }
 }
 
 #[cfg(test)]

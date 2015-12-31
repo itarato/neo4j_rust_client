@@ -90,6 +90,13 @@ impl PathBuilder {
         self
     }
 
+    pub fn path_with_weight(mut self, cost_property: String, default_cost: f64) -> PathBuilder {
+        self.param.cost_property = Some(cost_property);
+        self.param.default_cost = Some(default_cost);
+        self.param.algorithm = "dijkstra".to_string();
+        self
+    }
+
     // pub fn relationships(mut self) -> PathBuilder {
     //     // TODO discover relationship settings form Neo4J api
     //     self
@@ -241,6 +248,23 @@ mod tests {
 
         let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
             .path_with_depth(path::Algorithm::AllPaths, 3);
+        let p = path_builder.get_one();
+        assert!(p.is_ok());
+
+        for rel in rels {
+            assert!(rel.delete(cli.as_ref()).is_ok());
+        }
+        for n in nodes {
+            assert!(n.delete(cli.as_ref()).is_ok());
+        }
+    }
+
+    #[test]
+    fn test_get_weighted_path() {
+        let (cli, rels, nodes) = setup();
+
+        let path_builder = path::PathBuilder::new(cli.clone(), nodes[0].get_id().unwrap(), nodes[2].get_id().unwrap())
+            .path_with_weight("weight".to_string(), 1.0);
         let p = path_builder.get_one();
         assert!(p.is_ok());
 

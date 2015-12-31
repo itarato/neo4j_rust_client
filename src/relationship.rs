@@ -44,6 +44,40 @@ pub struct Relationship<T = RelationshipUnidentifiedResult> {
 }
 
 impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> {
+    pub fn get(cli: &::client::Client, id: u64) -> Result<Relationship<T>, Error> {
+        let path = format!("/db/data/relationship/{}", id);
+        let mut payload = String::new();
+        let mut res = match cli.get(path).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
+        if hyper::status::StatusCode::Ok != res.status {
+            return Err(Error::ResponseError);
+        }
+
+        let _ = res.read_to_string(&mut payload);
+        let rel_raw  = match json::Json::from_str(&payload) {
+            Ok(rel_raw) => rel_raw,
+            _ => return Err(Error::DataError),
+        };
+
+        // TODO load typed json to get data
+        let rel_typed: RelationshipResult<T> = match json::decode(&payload) {
+            Ok(rel_typed) => rel_typed,
+            _ => return Err(Error::DataError),
+        };
+
+        // TODO extract to a method with the same one from *.all_for_node()
+        let obj = rel_raw.as_object().unwrap();
+        Ok(Relationship {
+            id: id,
+            type_name: obj.get("type").unwrap().as_string().unwrap().to_string(),
+            from: get_node_id_from_url(obj.get("start").unwrap().as_string().unwrap().to_string()),
+            to: get_node_id_from_url(obj.get("end").unwrap().as_string().unwrap().to_string()),
+            properties: Some(rel_typed.data),
+        })
+    }
+
     pub fn connect(cli: &::client::Client, id_from: u64, id_to: u64, type_name: String, properties: Option<T>) -> Result<Relationship<T>, Error> {
         let mut rel_data:HashMap<String, RelationshipDataField<T>> = HashMap::new();
         let path: String = format!("/db/data/node/{}", id_to);
@@ -84,7 +118,26 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
         Ok(rel)
     }
 
-    pub fn delete(self, cli: &::client::Client) -> Result<(), Error> {
+    pub fn set_property<PropT: Encodable>(&self, cli: &::client::Client, prop: String, val: PropT) -> Result<(), Error> {
+        let val = match json::encode(&val) {
+            Ok(s) => s,
+            _ => return Err(Error::DataError),
+        };
+        let path = format!("/db/data/relationship/{}/properties/{}", self.id, prop);
+        let res = match cli.put(path).body(&*val).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
+
+        // TODO turn to a macro
+        if hyper::status::StatusCode::NoContent != res.status {
+            return Err(Error::ResponseError);
+        }
+
+        Ok(())
+    }
+
+    pub fn delete(&self, cli: &::client::Client) -> Result<(), Error> {
         let path:String = format!("/db/data/relationship/{}", self.id);
         let res = match cli.delete(path).send() {
             Ok(res) => res,
@@ -191,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_connect_nodes_with_type() {
+    pub fn test_connect_nodes_with_type_and_load_by_id() {
         let cli = get_client();
 
         let mut node_parent: node::Node = node::Node::new();
@@ -207,6 +260,36 @@ mod tests {
         assert!(rel.id > 0);
         assert_eq!(rel.properties.as_ref().unwrap().name, "Steve");
         assert_eq!(rel.properties.as_ref().unwrap().level, -6);
+
+        let res_reload: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::get(&cli, rel.id);
+        assert!(res_reload.is_ok());
+        assert_eq!(res_reload.unwrap().properties.unwrap().name, "Steve");
+
+        assert!(rel.delete(&cli).is_ok());
+        assert!(node_parent.delete(&cli).is_ok());
+        assert!(node_child.delete(&cli).is_ok());
+    }
+
+    #[test]
+    pub fn test_setting_property() {
+        let cli = get_client();
+
+        let mut node_parent: node::Node = node::Node::new();
+        assert!(node_parent.add(&cli).is_ok());
+
+        let mut node_child: node::Node = node::Node::new();
+        assert!(node_child.add(&cli).is_ok());
+
+        let res: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::connect(&cli, node_parent.get_id().unwrap(), node_child.get_id().unwrap(), "Likes".to_string(), Some(TestRelationshipData { name: "Steve".to_string(), level: -6, }));
+        assert!(res.is_ok());
+
+        let rel = res.unwrap();
+
+        assert!(rel.set_property(&cli, "name".to_string(), "Walter".to_string()).is_ok());
+
+        let res_reload: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::get(&cli, rel.id);
+        assert!(res_reload.is_ok());
+        assert_eq!(res_reload.unwrap().properties.unwrap().name, "Walter");
 
         assert!(rel.delete(&cli).is_ok());
         assert!(node_parent.delete(&cli).is_ok());
