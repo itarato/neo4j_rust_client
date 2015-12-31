@@ -156,6 +156,8 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
 pub struct RelationshipCollection;
 
 impl RelationshipCollection {
+    // TODO add test
+    // TODO use typed error
     pub fn all_for_node(cli: &::client::Client, id: u64) -> Result<Vec<Relationship>, String> {
         let path = format!("/db/data/node/{}/relationships/all", id);
         let mut res = cli.get(path)

@@ -105,7 +105,7 @@ Fetch node (type-less and typed):
 let n = node::Node::get(&cli, <NODE_ID>).unwrap();
 
 // With data:
-let n: node::Node<MyData> = node::Node::get(&cli, <NODE_ID>).unwrap();
+let n: node::Node<MyData> = node::Node::get(&cli, 123).unwrap();
 
 // Assuming T from Node<T> implements Display.
 println!("Node with id: {} has labels: {:?} and properties: {:?}", node.get_id().unwrap(), node.get_labels(), node.get_properties().unwrap());
@@ -133,8 +133,88 @@ index::Index::new("name_index".to_string(), "name".to_string()).delete(&cli);
 
 # Relationships
 
+Establish new relationship - no properties (type-less):
 
+```rust
+let res: Result<relationship::Relationship, Error> = relationship::Relationship::connect(&cli, 17, 42, "FriendsWith".to_string(), None);
+```
 
+With props (typed):
+
+```rust
+#[derive(RustcEncodable, RustcDecodable)]
+struct TestRelationshipData {
+    name: String,
+    level: i64,
+}
+
+let res: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::connect(&cli, 17, 42, "FriendsWith".to_string(), Some(TestRelationshipData { name: "strong".to_string(), level: 60, }));
+```
+
+Load connection (with known prop type) by its known ID:
+
+```rust
+#[derive(RustcEncodable, RustcDecodable)]
+struct TestRelationshipData {
+    name: String,
+    level: i64,
+}
+
+let res: Result<relationship::Relationship<TestRelationshipData>, Error> = relationship::Relationship::get(&cli, 123);
+```
+
+Load all connections from/to a node (collection can be fetched without properties only):
+
+```rust
+let rels = relationship::RelationshipCollection::all_for_node(&cli, 42).unwrap();
+```
+
+Separately set one property on a connection:
+
+```rust
+let rel: relationship::Relationship<TestRelationshipData> = relationship::Relationship::get(&cli, 123).unwrap();
+rel.set_property(&cli, "name".to_string(), "complicated".to_string());
+```
+
+Delete a connection:
+
+```rust
+rel.delete(&cli);
+```
+
+# Paths and graph algorithms
+
+For details about the Neo4J part visit http://neo4j.com/docs/stable/rest-api-graph-algos.html.
+
+Setting up a path request:
+
+```rust
+let max_depth = 3;
+let path_builder = path::PathBuilder::new(Rc::new(cli), 17, 42)
+    .path_with_depth(path::Algorithm::ShortestPath, max_depth);
+```
+
+Get one result (depending on the algorithm, the shortest or just one random):
+
+```rust
+path_builder.get_one().unwrap();
+```
+
+Get all:
+
+```rust
+path_builder.get_all().unwrap();
+```
+
+Use Dijkstra with weights:
+
+```rust
+let default_weight = 1.0;
+let path = path::PathBuilder::new(Rc::new(cli), 17, 42)
+    .path_with_weight("weight".to_string(), default_weight)
+    .get_one()
+    .unwrap();
+```
 
 Test (for developers)
 ---------------------
