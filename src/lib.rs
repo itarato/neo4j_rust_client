@@ -14,3 +14,4 @@ pub mod node;
 pub mod relationship;
 pub mod index;
 pub mod path;
+pub mod cypher;
