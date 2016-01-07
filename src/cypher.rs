@@ -2,6 +2,7 @@ use rustc_serialize::{json, Encodable, Decodable};
 pub use types::Error;
 use hyper;
 use std::io::Read;
+use std::rc::Rc;
 
 #[derive(RustcEncodable)]
 struct CypherStatement<T> {
@@ -61,6 +62,60 @@ impl Cypher {
         };
 
         Ok(result)
+    }
+}
+
+pub struct CypherTransaction {
+    cli: Rc<::client::Client>,
+    id: Option<u64>,
+}
+
+impl CypherTransaction {
+    pub fn new(cli: Rc<::client::Client>) -> CypherTransaction {
+        CypherTransaction {
+            id: None,
+            cli: cli,
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        self.id.is_some()
+    }
+
+    pub fn commit(&mut self) -> Result<(), Error> {
+        if !self.is_active() {
+            return Err(Error::IntegrityError);
+        }
+        let path = format!("/db/data/transaction/{}/commit", self.id.unwrap());
+        let res = match self.cli.as_ref().post(path).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
+        if hyper::status::StatusCode::Ok != res.status {
+            return Err(Error::ResponseError);
+        }
+
+        self.id = None;
+
+        Ok(())
+    }
+
+    pub fn rollback(&mut self) -> Result<(), Error> {
+        if !self.is_active() {
+            return Err(Error::IntegrityError);
+        }
+        let path = format!("/db/data/transaction/{}", self.id.unwrap());
+        let res = match self.cli.as_ref().delete(path).send() {
+            Ok(res) => res,
+            _ => return Err(Error::NetworkError),
+        };
+        if hyper::status::StatusCode::Ok != res.status {
+            return Err(Error::ResponseError);
+        }
+
+        self.id = None;
+
+        Ok(())
     }
 }
 
