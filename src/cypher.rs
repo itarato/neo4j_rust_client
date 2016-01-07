@@ -45,13 +45,8 @@ impl Cypher {
             Ok(s) => s,
             _ => return Err(Error::DataError),
         };
-        let mut res = match cli.post("/db/data/transaction/commit".to_string()).body(&payload).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-        if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::ResponseError);
-        }
+
+        let mut res = try_rest!(cli.post("/db/data/transaction/commit".to_string()).body(&payload), Ok);
 
         let mut res_raw = String::new();
         let _ = res.read_to_string(&mut res_raw);
@@ -87,16 +82,8 @@ impl CypherTransaction {
             return Err(Error::IntegrityError);
         }
         let path = format!("/db/data/transaction/{}/commit", self.id.unwrap());
-        let res = match self.cli.as_ref().post(path).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-        if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::ResponseError);
-        }
-
+        try_rest!(self.cli.as_ref().post(path), Ok);
         self.id = None;
-
         Ok(())
     }
 
@@ -105,16 +92,8 @@ impl CypherTransaction {
             return Err(Error::IntegrityError);
         }
         let path = format!("/db/data/transaction/{}", self.id.unwrap());
-        let res = match self.cli.as_ref().delete(path).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-        if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::ResponseError);
-        }
-
+        try_rest!(self.cli.as_ref().delete(path), Ok);
         self.id = None;
-
         Ok(())
     }
 }

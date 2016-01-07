@@ -47,13 +47,7 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
     pub fn get(cli: &::client::Client, id: u64) -> Result<Relationship<T>, Error> {
         let path = format!("/db/data/relationship/{}", id);
         let mut payload = String::new();
-        let mut res = match cli.get(path).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-        if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::ResponseError);
-        }
+        let mut res = try_rest!(cli.get(path), Ok);
 
         let _ = res.read_to_string(&mut payload);
         let rel_raw  = match json::Json::from_str(&payload) {
@@ -91,14 +85,7 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
         let rel_data_string = json::encode(&rel_data).unwrap();
 
         let path:String = format!("/db/data/node/{}/relationships", id_from);
-        let mut res = match cli.post(path).body(&rel_data_string).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-
-        if hyper::status::StatusCode::Created != res.status {
-            return Err(Error::ResponseError);
-        }
+        let mut res = try_rest!(cli.post(path).body(&rel_data_string), Created);
 
         let mut res_raw = String::new();
         let _ = res.read_to_string(&mut res_raw);
@@ -124,30 +111,13 @@ impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> 
             _ => return Err(Error::DataError),
         };
         let path = format!("/db/data/relationship/{}/properties/{}", self.id, prop);
-        let res = match cli.put(path).body(&*val).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-
-        // TODO turn to a macro
-        if hyper::status::StatusCode::NoContent != res.status {
-            return Err(Error::ResponseError);
-        }
-
+        try_rest!(cli.put(path).body(&*val), NoContent);
         Ok(())
     }
 
     pub fn delete(&self, cli: &::client::Client) -> Result<(), Error> {
         let path:String = format!("/db/data/relationship/{}", self.id);
-        let res = match cli.delete(path).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-
-        if hyper::status::StatusCode::NoContent != res.status {
-            return Err(Error::ResponseError);
-        }
-
+        try_rest!(cli.delete(path), NoContent);
         info!("Relationship deleted: {}", self.id);
         Ok(())
     }
@@ -158,14 +128,7 @@ pub struct RelationshipCollection;
 impl RelationshipCollection {
     pub fn all_for_node(cli: &::client::Client, id: u64) -> Result<Vec<Relationship>, Error> {
         let path = format!("/db/data/node/{}/relationships/all", id);
-        let mut res = match cli.get(path).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-
-        if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::ResponseError);
-        }
+        let mut res = try_rest!(cli.get(path));
 
         let mut res_raw = String::new();
         let _ = res.read_to_string(&mut res_raw);

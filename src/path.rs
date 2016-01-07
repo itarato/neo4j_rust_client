@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::io::Read;
 pub use types::Error;
+use hyper;
 
 #[derive(Debug)]
 pub enum Algorithm {
@@ -121,10 +122,7 @@ impl PathBuilder {
         };
 
         let mut res_war = String::new();
-        let mut res = match self.cli.as_ref().post(path).body(&*payload).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
+        let mut res = try_rest!(self.cli.as_ref().post(path).body(&*payload));
         let _ = res.read_to_string(&mut res_war);
         Ok(match json::decode::<T>(&res_war) {
             Ok(obj) => obj,

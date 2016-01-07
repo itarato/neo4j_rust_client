@@ -55,14 +55,6 @@ impl ClientBuilder {
     }
 }
 
-macro_rules! request_fn {
-    ($name:ident, $req_type:ident) => {
-        pub fn $name(&self, path: String) -> hyper::client::RequestBuilder {
-            self.request(hyper::method::Method::$req_type, path)
-        }
-    }
-}
-
 impl Client {
     pub fn build_uri(&self, path: String) -> String {
         format!("{}:{}{}", self.url, self.port, path)

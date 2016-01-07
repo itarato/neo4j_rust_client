@@ -35,22 +35,16 @@ impl<T: Encodable + Decodable> Node<T> {
 
     pub fn get(client: &::client::Client, id: u64) -> Result<Node<T>, Error> {
         let path: String = format!("/db/data/node/{}", id);
+        let mut res = try_rest!(client.get(path), Ok);
+
         let mut res_raw = String::new();
-        let mut res = match client.get(path).send() {
-            Ok(res) => res,
-            Err(_) => return Err(Error::NetworkError),
-        };
-
-        if hyper::status::StatusCode::Ok != res.status {
-            return Err(Error::ResponseError);
-        }
-
-        let mut node = Self::new();
         let _ = res.read_to_string(&mut res_raw);
         let node_json: NodeDataResponse<T> = match json::decode(&res_raw) {
             Ok(res) => res,
             Err(_) => return Err(Error::DataError),
         };
+
+        let mut node = Self::new();
         node.update_from_response_node_json(node_json);
 
         Ok(node)
@@ -71,7 +65,6 @@ impl<T: Encodable + Decodable> Node<T> {
     }
 
     fn update_from_response_node_json(&mut self, node_json: NodeDataResponse<T>) {
-        // TODO check collision if exist and a different would be set
         self.id = Some(node_json.metadata.id);
         self.labels = node_json.metadata.labels.clone();
         self.properties = Some(node_json.data);
@@ -93,14 +86,7 @@ impl<T: Encodable + Decodable> Node<T> {
             None => String::new(),
         };
 
-        let mut res = match client.post("/db/data/node".to_string()).body(&props_string).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-        if hyper::status::StatusCode::Created != res.status {
-            return Err(Error::ResponseError);
-        }
-
+        let mut res = try_rest!(client.post("/db/data/node".to_string()).body(&props_string), Created);
         let _ = res.read_to_string(&mut response_raw);
         let node_json:NodeDataResponse<T> = match json::decode(&response_raw) {
             Ok(s) => s,
@@ -119,14 +105,8 @@ impl<T: Encodable + Decodable> Node<T> {
 
         let labels_raw:String = ["[\"", &*labels.join("\", \""), "\"]"].concat();
         let path:String = format!("/db/data/node/{}/labels", self.id.unwrap());
-        let res = match client.post(path).body(&*labels_raw).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
 
-        if hyper::status::StatusCode::NoContent != res.status {
-            return Err(Error::NetworkError);
-        }
+        try_rest!(client.post(path).body(&*labels_raw), NoContent);
 
         info!("Labels {:?} added to {}", labels_raw, self.id.unwrap());
         Ok(())
@@ -138,14 +118,7 @@ impl<T: Encodable + Decodable> Node<T> {
         }
 
         let path:String = format!("/db/data/node/{}", self.get_id().unwrap());
-        let res = match client.delete(path).send() {
-            Ok(res) => res,
-            _ => return Err(Error::NetworkError),
-        };
-
-        if hyper::status::StatusCode::NoContent != res.status {
-            return Err(Error::ResponseError);
-        }
+        try_rest!(client.delete(path), NoContent);
 
         info!("Node deleted: {}", self.id.unwrap());
         Ok(())

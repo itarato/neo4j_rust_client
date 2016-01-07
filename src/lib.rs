@@ -8,6 +8,7 @@ extern crate log;
 
 #[cfg(test)] extern crate rand;
 
+mod macros;
 pub mod types;
 pub mod client;
 pub mod node;

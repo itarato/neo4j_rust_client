@@ -1,6 +1,7 @@
 use rustc_serialize::{json};
 use std::collections::HashMap;
 use hyper;
+pub use types::Error;
 
 #[cfg(test)] extern crate rand;
 
@@ -17,32 +18,20 @@ impl Index {
         }
     }
 
-    pub fn create(&self, cli: &::client::Client) -> Result<(), String> {
+    pub fn create(&self, cli: &::client::Client) -> Result<(), Error> {
         let path = format!("/db/data/schema/index/{}", self.label);
+
         let mut payload_data: HashMap<String, Vec<String>> = HashMap::new();
         payload_data.insert("property_keys".to_string(), vec![self.property_key.clone()]);
         let payload = json::encode(&payload_data).unwrap();
-        let res = cli.post(path)
-            .body(&*payload)
-            .send()
-            .unwrap();
 
-        match res.status {
-            hyper::status::StatusCode::Ok => Ok(()),
-            status @ _ => Err(format!("Index could not be created, reason: {:?}", status)),
-        }
+        try_rest!(cli.post(path).body(&*payload), Ok);
+        Ok(())
     }
 
-    pub fn delete(&self, cli: &::client::Client) -> Result<(), String> {
+    pub fn delete(&self, cli: &::client::Client) -> Result<(), Error> {
         let path = format!("/db/data/schema/index/{}/{}", self.label, self.property_key);
-        let res = cli.delete(path)
-            .send()
-            .unwrap();
-
-        if hyper::status::StatusCode::NoContent != res.status {
-            return Err(format!("Failed to delete index with property: {:?}, reason: {:?}", self.property_key, res.status));
-        }
-
+        try_rest!(cli.delete(path), NoContent);
         Ok(())
     }
 }
