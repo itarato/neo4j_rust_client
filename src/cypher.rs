@@ -82,7 +82,7 @@ impl CypherTransaction {
             return Err(Error::IntegrityError);
         }
         let path = format!("/db/data/transaction/{}/commit", self.id.unwrap());
-        try_rest!(self.cli.as_ref().post(path), Ok);
+        try_rest!(self.cli.as_ref().post(path));
         self.id = None;
         Ok(())
     }
@@ -92,7 +92,7 @@ impl CypherTransaction {
             return Err(Error::IntegrityError);
         }
         let path = format!("/db/data/transaction/{}", self.id.unwrap());
-        try_rest!(self.cli.as_ref().delete(path), Ok);
+        try_rest!(self.cli.as_ref().delete(path));
         self.id = None;
         Ok(())
     }
