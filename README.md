@@ -216,6 +216,33 @@ let path = path::PathBuilder::new(Rc::new(cli), 17, 42)
     .unwrap();
 ```
 
+# Cypher queries and transactions
+
+Make a query and get the result:
+
+```rust
+#[derive(RustcDecodable)]
+struct QueryResult {
+    row: Vec<String>,
+}
+
+let mut params = HashMap::new();
+params.insert("id".to_string(), node.get_id().unwrap());
+
+let res = cypher::Cypher::query::<HashMap<String, u64>, Vec<QueryResult>>(&cli, "START n=node({id}) RETURN n.name".to_string(), params);
+
+println!("First result is: {:?}", res.unwrap().results[0].data[0].row[0])
+```
+
+Make a transaction:
+
+```rust
+let mut trans = cypher::CypherTransaction::new(Rc::new(cli));
+trans.query("CREATE (n) RETURN n".to_string(), ());
+trans.commit();
+// Or: trans.rollback();
+```
+
 Test (for developers)
 ---------------------
 
