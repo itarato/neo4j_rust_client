@@ -25,6 +25,25 @@ pub struct CypherResult<T: Decodable> {
 pub struct CypherResultsResponse<T: Decodable> {
     pub results: Vec<CypherResult<T>>,
     pub errors: Vec<String>,
+    commit: Option<String>,
+}
+
+impl<T: Decodable> CypherResultsResponse<T> {
+    fn get_id(&self) -> Option<u64> {
+        match self.commit.as_ref() {
+            None => None,
+            Some(url) => {
+                Some(url.split("transaction/")
+                    .collect::<Vec<&str>>()
+                    .last().unwrap()
+                    .split("/commit")
+                    .collect::<Vec<&str>>()
+                    .first().unwrap()
+                    .parse::<u64>().unwrap()
+                )
+            }
+        }
+    }
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
@@ -34,6 +53,10 @@ pub struct Cypher;
 
 impl Cypher {
     pub fn query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(cli: &::client::Client, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
+        Self::_query::<E, D>(cli, "/db/data/transaction/commit".to_string(), statement, parameters, false)
+    }
+
+    fn _query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(cli: &::client::Client, path: String, statement: String, parameters: E, is_new_transaction: bool) -> Result<CypherResultsResponse<D>, Error> {
         let statement = CypherStatement {
             statement: statement,
             parameters: Some(parameters),
@@ -46,7 +69,11 @@ impl Cypher {
             _ => return Err(Error::DataError),
         };
 
-        let mut res = try_rest!(cli.post("/db/data/transaction/commit".to_string()).body(&payload), Ok);
+        let mut res = if is_new_transaction {
+            try_rest!(cli.post(path).body(&payload), Created)
+        } else {
+            try_rest!(cli.post(path).body(&payload), Ok)
+        };
 
         let mut res_raw = String::new();
         let _ = res.read_to_string(&mut res_raw);
@@ -73,8 +100,30 @@ impl CypherTransaction {
         }
     }
 
-    fn is_active(&self) -> bool {
+    fn has_id(&self) -> bool {
         self.id.is_some()
+    }
+
+    fn is_active(&self) -> bool {
+        self.has_id()
+    }
+
+    pub fn query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(&mut self, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
+        let path = if self.is_active() {
+            format!("/db/data/transaction/{}", self.id.unwrap())
+        } else {
+            "/db/data/transaction".to_string()
+        };
+        let res = Cypher::_query::<E, D>(self.cli.as_ref(), path, statement, parameters, !self.is_active());
+        if res.is_err() {
+            return res;
+        }
+
+        if !self.has_id() {
+            self.id = res.as_ref().unwrap().get_id();
+        }
+
+        res
     }
 
     pub fn commit(&mut self) -> Result<(), Error> {
@@ -106,6 +155,7 @@ mod tests {
     use node;
     use rustc_serialize::{Encodable};
     use std::collections::HashMap;
+    use std::rc::Rc;
 
     #[derive(RustcEncodable, RustcDecodable)]
     struct TestNodeProps {
@@ -129,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_simple_query_with_commit() {
+    pub fn test_simple_query_with_immediate_commit() {
         let cli = get_client();
 
         let mut node = node::Node::new();
@@ -144,5 +194,28 @@ mod tests {
         assert_eq!(res.unwrap().results[0].data[0].row[0], "Steve");
 
         assert!(node.delete(&cli).is_ok());
+    }
+
+    #[test]
+    pub fn test_simple_query_with_transaction() {
+        let cli = Rc::new(get_client());
+
+        let mut node = node::Node::new();
+        node.set_properties(TestNodeProps { name: "Steve".to_string() });
+        assert!(node.add(cli.as_ref()).is_ok());
+
+        let mut params = HashMap::new();
+        params.insert("id".to_string(), node.get_id().unwrap());
+
+        let mut trans = cypher::CypherTransaction::new(cli.clone());
+        assert!(trans.commit().is_err());
+        assert!(trans.rollback().is_err());
+
+        let res = trans.query::<HashMap<String, u64>, Vec<TestQueryResult>>("START n=node({id}) RETURN n.name".to_string(), params);
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().results[0].data[0].row[0], "Steve");
+        assert!(trans.commit().is_ok());
+
+        assert!(node.delete(cli.as_ref()).is_ok());
     }
 }
