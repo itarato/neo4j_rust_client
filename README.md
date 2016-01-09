@@ -234,7 +234,7 @@ let res = cypher::Cypher::query::<HashMap<String, u64>, Vec<QueryResult>>(&cli, 
 println!("First result is: {:?}", res.unwrap().results[0].data[0].row[0])
 ```
 
-Make a transaction:
+Make a transaction (in this example without query parameters or return type):
 
 ```rust
 let mut trans = cypher::CypherTransaction::new(Rc::new(cli));
