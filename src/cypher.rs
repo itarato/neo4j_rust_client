@@ -52,11 +52,11 @@ pub struct CypherUnidentifiedData;
 pub struct Cypher;
 
 impl Cypher {
-    pub fn query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(cli: &::client::Client, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
+    pub fn query<E: Encodable, D: Decodable>(cli: &::client::Client, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
         Self::_query::<E, D>(cli, "/db/data/transaction/commit".to_string(), statement, parameters, false)
     }
 
-    fn _query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(cli: &::client::Client, path: String, statement: String, parameters: E, is_new_transaction: bool) -> Result<CypherResultsResponse<D>, Error> {
+    fn _query<E: Encodable, D: Decodable>(cli: &::client::Client, path: String, statement: String, parameters: E, is_new_transaction: bool) -> Result<CypherResultsResponse<D>, Error> {
         let statement = CypherStatement {
             statement: statement,
             parameters: Some(parameters),
@@ -108,7 +108,7 @@ impl CypherTransaction {
         self.has_id()
     }
 
-    pub fn query<E: Encodable = (), D: Decodable = CypherUnidentifiedData>(&mut self, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
+    pub fn query<E: Encodable, D: Decodable>(&mut self, statement: String, parameters: E) -> Result<CypherResultsResponse<D>, Error> {
         let path = if self.is_active() {
             format!("/db/data/transaction/{}", self.id.unwrap())
         } else {
@@ -153,7 +153,6 @@ mod tests {
     use client;
     use cypher;
     use node;
-    use rustc_serialize::{Encodable};
     use std::collections::HashMap;
     use std::rc::Rc;
 

@@ -1,4 +1,4 @@
-use rustc_serialize::{json, Encodable, Decodable};
+use rustc_serialize::{json, Decodable};
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::io::Read;

@@ -4,9 +4,9 @@ version = "0.1.0"
 authors = ["Peter Arato <it.arato@gmail.com>"]
 
 [dependencies]
-hyper = "0.6"
-rustc-serialize = "0.3"
+rustc-serialize = "0.3.16"
+hyper = "0.10.4"
 log = "0.3.4"
 
 [dev-dependencies]
-rand = "0.3"
+rand = "0.3.15"

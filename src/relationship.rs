@@ -43,7 +43,7 @@ pub struct Relationship<T = RelationshipUnidentifiedResult> {
     properties: Option<T>,
 }
 
-impl<T: Encodable + Decodable = RelationshipUnidentifiedResult> Relationship<T> {
+impl<T: Encodable + Decodable> Relationship<T> {
     pub fn get(cli: &::client::Client, id: u64) -> Result<Relationship<T>, Error> {
         let path = format!("/db/data/relationship/{}", id);
         let mut payload = String::new();

@@ -22,7 +22,7 @@ struct NodeDataResponse<T: Decodable = NodeUnidentifiedData> {
 }
 
 #[derive(RustcDecodable, RustcEncodable, Debug)]
-struct NodeUnidentifiedData;
+pub struct NodeUnidentifiedData;
 
 impl<T: Encodable + Decodable> Node<T> {
     pub fn new() -> Node<T> {
@@ -130,7 +130,6 @@ mod tests {
     use std::env;
     use client;
     use node;
-    use rustc_serialize::{Encodable};
 
     #[derive(RustcEncodable, RustcDecodable)]
     struct TestNodeData {
